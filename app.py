@@ -1,601 +1,155 @@
 import ast
+import contextlib
 import io
 import json
-import contextlib
 from datetime import datetime
 
 import streamlit as st
 from openai import OpenAI
 
 st.set_page_config(page_title="Python QA Academy", page_icon="🐍", layout="wide")
-
 MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.4-nano")
 PASS_SCORE = 70
 
-# ---------------- UI ----------------
-st.markdown(
-    """
-    <style>
-    .stApp {background:radial-gradient(circle at 8% 0%,rgba(16,185,129,.12),transparent 27%),radial-gradient(circle at 95% 8%,rgba(59,130,246,.10),transparent 24%),#f7fafc;}
-    .block-container {max-width:1250px;padding-top:1.3rem;padding-bottom:3rem;}
-    .hero {background:linear-gradient(135deg,#052e2b 0%,#064e3b 50%,#0f172a 100%);border-radius:24px;padding:24px 28px;color:white;box-shadow:0 18px 45px rgba(15,23,42,.18);margin-bottom:16px;}
-    .hero-title {font-size:30px;font-weight:850;letter-spacing:-.02em;}
-    .hero-copy {color:#cbd5e1;font-size:14px;margin-top:3px;}
-    .chip-row {display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
-    .chip {padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:700;color:#e2e8f0;}
-    .kicker {color:#059669;font-size:12px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;}
-    .title {font-size:23px;font-weight:850;color:#0f172a;margin:2px 0 5px 0;}
-    .copy {color:#64748b;font-size:13px;margin-bottom:12px;}
-    .note {background:#ecfdf5;border:1px solid #a7f3d0;border-radius:14px;padding:13px 15px;margin:8px 0 12px 0;}
-    .mental {background:#eff6ff;border-left:4px solid #3b82f6;border-radius:12px;padding:12px 14px;margin:8px 0 12px 0;}
-    .console {background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px 16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;min-height:58px;}
-    .rubric {background:#fff;border:1px solid #e5e7eb;border-radius:15px;padding:13px 15px;height:100%;box-shadow:0 4px 15px rgba(15,23,42,.04);}
-    div[data-testid="stMetric"] {background:#fff;border:1px solid #e5e7eb;padding:12px 14px;border-radius:15px;box-shadow:0 4px 15px rgba(15,23,42,.04);}
-    .stTabs [data-baseweb="tab-list"] {gap:7px;background:#edf2f7;padding:6px;border-radius:14px;}
-    .stTabs [data-baseweb="tab"] {border-radius:10px;height:42px;font-weight:750;}
-    .stTabs [aria-selected="true"] {background:#fff!important;box-shadow:0 2px 8px rgba(15,23,42,.08);}
-    .stButton>button,.stDownloadButton>button {border-radius:12px;font-weight:750;}
-    div[data-testid="stTextArea"] textarea {font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:12px!important;}
-    footer {visibility:hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+.stApp{background:radial-gradient(circle at 8% 0%,rgba(16,185,129,.12),transparent 27%),radial-gradient(circle at 95% 8%,rgba(59,130,246,.10),transparent 24%),#f8fafc}.block-container{max-width:1280px;padding-top:1.2rem;padding-bottom:3rem}.hero{background:linear-gradient(135deg,#052e2b 0%,#064e3b 48%,#0f172a 100%);border-radius:24px;padding:26px 30px;color:white;box-shadow:0 18px 45px rgba(15,23,42,.18);margin-bottom:16px}.hero-title{font-size:32px;font-weight:850;letter-spacing:-.03em}.hero-copy{color:#cbd5e1;font-size:14px;margin-top:5px;max-width:850px}.chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.chip{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:700;color:#e2e8f0}.kicker{color:#059669;font-size:12px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}.title{font-size:25px;font-weight:850;color:#0f172a;margin:2px 0 4px}.copy{color:#64748b;font-size:13px;margin-bottom:12px}.lesson-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:17px 18px;box-shadow:0 5px 18px rgba(15,23,42,.04);margin:10px 0}.mental{background:#eff6ff;border-left:4px solid #3b82f6;border-radius:12px;padding:13px 15px;margin:8px 0 12px}.warning{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:13px 15px;margin:8px 0 12px}.console{background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px 16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;min-height:58px}div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;padding:12px 14px;border-radius:15px;box-shadow:0 4px 15px rgba(15,23,42,.04)}.stTabs [data-baseweb="tab-list"]{gap:7px;background:#edf2f7;padding:6px;border-radius:14px}.stTabs [data-baseweb="tab"]{border-radius:10px;height:42px;font-weight:750}.stTabs [aria-selected="true"]{background:#fff!important;box-shadow:0 2px 8px rgba(15,23,42,.08)}.stButton>button,.stDownloadButton>button{border-radius:12px;font-weight:750}div[data-testid="stTextArea"] textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:12px!important}footer{visibility:hidden}
+</style>
+""", unsafe_allow_html=True)
 
-# ---------------- Course content ----------------
+
+def lesson(i,title,goal,overview,syntax,qa_use,key_points,mental,examples,mistakes,quiz,practice,start,expected,hint,assignment,a_start,a_expected,rubric):
+    return {"id":f"{i:02d}","title":title,"goal":goal,"overview":overview,"syntax":syntax,"qa_use":qa_use,"key_points":key_points,"mental":mental,"examples":examples,"mistakes":mistakes,"quiz":quiz,"practice":practice,"start":start,"expected":expected,"hint":hint,"assignment":assignment,"a_start":a_start,"a_expected":a_expected,"rubric":rubric}
+
 MODULES = [
-    {
-        "id": "01",
-        "title": "print() — Your First Python Code",
-        "goal": "Show text and values on the screen.",
-        "notes": "print() tells Python to display something. Text must be inside quotes. This is useful in QA when you want to display a test result or debug value.",
-        "mental": 'Think: print("PASS") means “show PASS on the screen.”',
-        "example": 'print("Hello QA")\nprint("PASS")',
-        "practice_prompt": 'Write code that prints exactly: I am learning Python',
-        "practice_start": 'print("I am learning Python")',
-        "practice_expected": "I am learning Python",
-        "hint": 'Use print("...") and keep text inside quotes.',
-        "assignment": "Write two print statements. First print: My name is Alex. Second print: I want to become an Automation QA Engineer.",
-        "assignment_start": '# Write your answer here\n',
-        "assignment_expected": ["My name is Alex", "I want to become an Automation QA Engineer"],
-        "rubric": ["Uses print() correctly", "Uses quoted strings", "Produces both required lines", "Readable code"],
-    },
-    {
-        "id": "02",
-        "title": "Variables — Store Test Data",
-        "goal": "Save values and reuse them later.",
-        "notes": "A variable is a named box that stores a value. In QA you might store an expected status code, username, URL, or test result.",
-        "mental": "expected_status = 200 means: store 200 inside a box named expected_status.",
-        "example": 'expected_status = 200\nactual_status = 200\nprint(expected_status)\nprint(actual_status)',
-        "practice_prompt": "Create a variable named browser with value Chrome, then print it.",
-        "practice_start": 'browser = "Chrome"\nprint(browser)',
-        "practice_expected": "Chrome",
-        "hint": 'Use browser = "Chrome" and then print(browser).',
-        "assignment": "Create variables test_name = Login Test and status = PASS. Print both values on separate lines.",
-        "assignment_start": '# Create test_name and status\n',
-        "assignment_expected": ["Login Test", "PASS"],
-        "rubric": ["Creates both variables", "Correct values", "Prints both values", "Readable names"],
-    },
-    {
-        "id": "03",
-        "title": "Data Types — Text, Numbers and True/False",
-        "goal": "Understand string, integer, float and boolean values.",
-        "notes": "Common automation data types: str for text, int for whole numbers, float for decimals, bool for True/False. Python decides the type from the value you assign.",
-        "mental": '"PASS" is text, 200 is a number, 1.5 is a decimal, True is a boolean.',
-        "example": 'test_name = "Login"\nstatus_code = 200\nresponse_time = 1.25\nis_passed = True\nprint(type(test_name).__name__)\nprint(type(status_code).__name__)',
-        "practice_prompt": "Create status_code = 404 and is_failed = True. Print both.",
-        "practice_start": 'status_code = 404\nis_failed = True\nprint(status_code)\nprint(is_failed)',
-        "practice_expected": "404\nTrue",
-        "hint": "404 has no quotes. True starts with a capital T and has no quotes.",
-        "assignment": "Create qa_name as text, total_tests as 10, pass_rate as 95.5, and automation_ready as True. Print all four.",
-        "assignment_start": '# Create the four variables\n',
-        "assignment_expected": ["qa_name", "10", "95.5", "True"],
-        "rubric": ["Uses four requested data types", "Correct values", "Prints all values", "No unnecessary conversions"],
-    },
-    {
-        "id": "04",
-        "title": "Strings — Work With Text",
-        "goal": "Combine and inspect text values.",
-        "notes": "Strings are text. QA automation uses strings for URLs, names, messages and JSON values. You can combine strings and use methods such as lower() and upper().",
-        "mental": 'If result = "PASS", result.lower() becomes "pass".',
-        "example": 'test_name = "Login"\nresult = "PASS"\nprint(test_name + " - " + result)\nprint(result.lower())',
-        "practice_prompt": "Create message = API TEST PASSED and print it in lowercase.",
-        "practice_start": 'message = "API TEST PASSED"\nprint(message.lower())',
-        "practice_expected": "api test passed",
-        "hint": "Use .lower() after the variable name.",
-        "assignment": "Create first = API and second = Automation. Print: API Automation. Then print the same text in uppercase.",
-        "assignment_start": '# Work with first and second\n',
-        "assignment_expected": ["API Automation", "API AUTOMATION"],
-        "rubric": ["Creates both strings", "Combines them correctly", "Uses uppercase operation", "Correct output"],
-    },
-    {
-        "id": "05",
-        "title": "Operators — Compare Expected vs Actual",
-        "goal": "Compare values and perform simple calculations.",
-        "notes": "Automation depends on comparisons. == asks whether two values are equal. != means not equal. > and < compare numbers.",
-        "mental": "actual == expected is the basic idea behind an assertion.",
-        "example": 'expected = 200\nactual = 200\nprint(actual == expected)\nprint(actual != expected)',
-        "practice_prompt": "Set expected = 200 and actual = 404. Print whether they are equal.",
-        "practice_start": 'expected = 200\nactual = 404\nprint(actual == expected)',
-        "practice_expected": "False",
-        "hint": "Use == to compare. A single = assigns a value.",
-        "assignment": "Set expected_time = 2 and actual_time = 3. Print whether actual_time is greater than expected_time and whether the values are equal.",
-        "assignment_start": '# Compare expected_time and actual_time\n',
-        "assignment_expected": ["True", "False"],
-        "rubric": ["Uses comparison operators", "Correct variables", "Correct boolean results", "Clear code"],
-    },
-    {
-        "id": "06",
-        "title": "Lists — Store Multiple Test Cases",
-        "goal": "Keep several values in one ordered collection.",
-        "notes": "A list stores multiple values. QA engineers use lists for test names, expected results, browsers, or user IDs.",
-        "mental": '["Login", "Search"] is one list containing two test names.',
-        "example": 'tests = ["Login", "Search", "Checkout"]\nprint(tests[0])\nprint(len(tests))',
-        "practice_prompt": "Create a list with Chrome, Firefox, Edge. Print Firefox.",
-        "practice_start": 'browsers = ["Chrome", "Firefox", "Edge"]\nprint(browsers[1])',
-        "practice_expected": "Firefox",
-        "hint": "List positions start at 0, so the second item is index 1.",
-        "assignment": "Create tests = [Login, Search, Checkout]. Print the first test, the last test, and the number of tests.",
-        "assignment_start": '# Create and inspect the tests list\n',
-        "assignment_expected": ["Login", "Checkout", "3"],
-        "rubric": ["Correct list", "Uses indexes correctly", "Uses len()", "Correct output"],
-    },
-    {
-        "id": "07",
-        "title": "Dictionaries — Store API-Like Data",
-        "goal": "Store values using key/value pairs.",
-        "notes": "Dictionaries look like simple JSON objects. This is very important for API automation because response.json() commonly gives you dictionary-like data.",
-        "mental": '{"status": 200} means key status has value 200.',
-        "example": 'response = {"status": 200, "result": "PASS"}\nprint(response["status"])\nprint(response["result"])',
-        "practice_prompt": "Create user with name Sam and role QA. Print the role.",
-        "practice_start": 'user = {"name": "Sam", "role": "QA"}\nprint(user["role"])',
-        "practice_expected": "QA",
-        "hint": 'Use user["role"] to read the value for the role key.',
-        "assignment": "Create response with id = 2, name = Alex, active = True. Print id, name and active.",
-        "assignment_start": '# Create the response dictionary\n',
-        "assignment_expected": ["2", "Alex", "True"],
-        "rubric": ["Creates dictionary", "Correct keys and values", "Reads keys correctly", "Correct output"],
-    },
-    {
-        "id": "08",
-        "title": "if / else — Decide PASS or FAIL",
-        "goal": "Run different code depending on a condition.",
-        "notes": "if/else is the foundation of test decisions. If the expected and actual values match, we can mark PASS; otherwise FAIL.",
-        "mental": "IF condition is True → do this. ELSE → do something different.",
-        "example": 'status_code = 200\nif status_code == 200:\n    print("PASS")\nelse:\n    print("FAIL")',
-        "practice_prompt": "Set status_code to 404. Print PASS only for 200, otherwise print FAIL.",
-        "practice_start": 'status_code = 404\nif status_code == 200:\n    print("PASS")\nelse:\n    print("FAIL")',
-        "practice_expected": "FAIL",
-        "hint": "Remember the colon : and indentation under if and else.",
-        "assignment": "Set expected = 201 and actual = 201. Print PASS if they match, otherwise FAIL.",
-        "assignment_start": '# Add your if/else validation\n',
-        "assignment_expected": ["PASS"],
-        "rubric": ["Correct expected/actual values", "Correct == comparison", "Correct if/else", "Correct indentation"],
-    },
-    {
-        "id": "09",
-        "title": "for Loops — Run Through Test Data",
-        "goal": "Repeat work for every item in a collection.",
-        "notes": "A for loop is useful when the same test logic must run for many inputs, users, browsers or endpoints.",
-        "mental": "for test in tests means: take each item from tests one at a time.",
-        "example": 'tests = ["Login", "Search", "Checkout"]\nfor test in tests:\n    print(test)',
-        "practice_prompt": "Loop through [200, 201, 204] and print each status code.",
-        "practice_start": 'codes = [200, 201, 204]\nfor code in codes:\n    print(code)',
-        "practice_expected": "200\n201\n204",
-        "hint": "Use for item in list: and indent the print statement.",
-        "assignment": "Create results = [PASS, PASS, FAIL]. Use a for loop to print each result.",
-        "assignment_start": '# Loop through the results\n',
-        "assignment_expected": ["PASS", "PASS", "FAIL"],
-        "rubric": ["Correct list", "Uses for loop", "Prints each item", "Correct indentation"],
-    },
-    {
-        "id": "10",
-        "title": "while Loops — Repeat Until a Condition Changes",
-        "goal": "Repeat code while a condition remains true.",
-        "notes": "while loops repeat until their condition becomes False. They must update something inside the loop or they can run forever.",
-        "mental": "while attempt < 3 means keep going while attempt is 0, 1 or 2.",
-        "example": 'attempt = 1\nwhile attempt <= 3:\n    print(attempt)\n    attempt = attempt + 1',
-        "practice_prompt": "Use a while loop to print 1, 2, 3.",
-        "practice_start": 'count = 1\nwhile count <= 3:\n    print(count)\n    count = count + 1',
-        "practice_expected": "1\n2\n3",
-        "hint": "Increase the counter inside the loop so it eventually stops.",
-        "assignment": "Create retry = 1. While retry <= 2, print Retry followed by the number, then increase retry.",
-        "assignment_start": '# Write the retry loop\n',
-        "assignment_expected": ["Retry 1", "Retry 2"],
-        "rubric": ["Correct initial counter", "Correct while condition", "Updates counter", "Stops correctly"],
-    },
-    {
-        "id": "11",
-        "title": "Functions — Build Reusable QA Logic",
-        "goal": "Put reusable validation logic into a named function.",
-        "notes": "Functions prevent duplicate code. API automation frameworks use functions for requests, validation, setup and reusable helpers.",
-        "mental": "A function is a small reusable machine: give it inputs → it gives you a result.",
-        "example": 'def validate_status(actual, expected):\n    if actual == expected:\n        return "PASS"\n    return "FAIL"\n\nprint(validate_status(200, 200))',
-        "practice_prompt": "Create add(a, b) that returns a + b. Print add(2, 3).",
-        "practice_start": 'def add(a, b):\n    return a + b\n\nprint(add(2, 3))',
-        "practice_expected": "5",
-        "hint": "Use def name(parameters): and return the result.",
-        "assignment": "Create validate_status(actual, expected). Return PASS when values match and FAIL otherwise. Print the result for (200, 200) and (404, 200).",
-        "assignment_start": '# Build validate_status()\n',
-        "assignment_expected": ["PASS", "FAIL"],
-        "rubric": ["Defines function with two parameters", "Correct comparison", "Returns PASS/FAIL", "Tests both matching and non-matching values"],
-    },
-    {
-        "id": "12",
-        "title": "Final Mini Project — QA Result Evaluator",
-        "goal": "Combine variables, lists, loops, conditions and functions.",
-        "notes": "This mini project connects the Python basics you need before API automation. You will evaluate several status codes and print PASS or FAIL for each one.",
-        "mental": "This is the bridge from Python basics to automated API assertions.",
-        "example": 'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',
-        "practice_prompt": "Run the example and explain which status code fails.",
-        "practice_start": 'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',
-        "practice_expected": "200 PASS\n404 FAIL\n200 PASS",
-        "hint": "The expected code is 200, so any other code should fail.",
-        "assignment": "Create validate_status(actual, expected). Use it to evaluate [200, 201, 500] against expected 200. Print each code and PASS/FAIL. Then print Total tests: 3.",
-        "assignment_start": '# Final Python QA mini project\n',
-        "assignment_expected": ["200 PASS", "201 FAIL", "500 FAIL", "Total tests: 3"],
-        "rubric": ["Reusable validation function", "Loops over all codes", "Correct PASS/FAIL decisions", "Prints total test count"],
-    },
+lesson(1,"print() — Your First Python Code","Display text and values so you can see what your program is doing.","Python runs instructions from top to bottom. print() is the simplest instruction: it sends a value to the output screen. Beginners use it to understand what Python is doing, and QA engineers use it to inspect values while debugging tests.","print(value)",["Display PASS/FAIL while learning","Inspect a status code or variable","Debug a test before formal assertions"],["Text goes inside quotes","Numbers do not need quotes","Python is case-sensitive: print is not Print","You can print more than one value"],"Think of print() as saying: Python, show me this value.",[("Print text",'print("Hello QA")',"Text is a string, so it is inside quotes."),("Print a number","print(200)","Numbers can be printed without quotes."),("QA result",'test_name = "Login"\nresult = "PASS"\nprint(test_name, result)',"Multiple values can be shown on one line.")],["Forgetting quotes around text","Writing Print() instead of print()","Missing the closing parenthesis"],("Which line correctly prints PASS?",['print("PASS")','Print("PASS")','print(PASS)'],'print("PASS")'),"Write code that prints exactly: I am learning Python",'print("I am learning Python")',"I am learning Python",'Use print("...") and keep text inside quotes.',"Write two print statements. First: My name is Alex. Second: I want to become an Automation QA Engineer.","# Write your answer here\n",["My name is Alex","I want to become an Automation QA Engineer"],["Uses print() correctly","Uses quoted strings","Produces both required lines","Readable code"]),
+lesson(2,"Variables — Store Test Data","Store values once and reuse them throughout automation code.","A variable gives a name to a value. Instead of repeating the same value, you store it once and use its name. Automation relies heavily on variables for URLs, expected results, usernames, IDs and test data.","variable_name = value",["Store expected status codes","Store test names and input data","Reuse configuration values"],["= assigns a value","Choose clear variable names","Text needs quotes","A variable can be updated later"],"A variable is a labeled box: expected_status = 200 stores 200 in a box named expected_status.",[("Store and print",'browser = "Chrome"\nprint(browser)',"Python remembers Chrome under browser."),("Expected and actual","expected_status = 200\nactual_status = 404\nprint(expected_status)\nprint(actual_status)","Tests often keep expected and actual separately."),("Update a value",'result = "FAIL"\nresult = "PASS"\nprint(result)',"The latest assignment becomes the current value.")],["Putting spaces in variable names","Starting a variable with a number","Using == when you mean ="],("Which line stores 200?",["expected_status = 200","expected_status == 200","200 = expected_status"],"expected_status = 200"),"Create browser = Chrome, then print it.",'browser = "Chrome"\nprint(browser)',"Chrome",'Use browser = "Chrome" then print(browser).',"Create test_name = Login Test and status = PASS. Print both on separate lines.","# Create the variables\n",["Login Test","PASS"],["Creates both variables","Correct values","Prints both values","Readable names"]),
+lesson(3,"Data Types — Text, Numbers and True/False","Recognize the value types used constantly in automation.","Python values have types. Text is str, whole numbers are int, decimals are float, and True/False values are bool. Type awareness is especially important when you later validate JSON API responses.",'name = "QA"      # str\nstatus = 200     # int\ntime = 1.25      # float\npassed = True    # bool',["API responses contain mixed types","Assertions can fail when types differ","Boolean fields are common in JSON"],["str = text","int = whole number","float = decimal","bool = True or False"],'"200" and 200 look similar, but one is text and one is a number.',[("Common QA types",'test_name = "Login"\nstatus = 200\ntime = 1.25\npassed = True\nprint(test_name, status, time, passed)',"One test can use several data types."),("Inspect a type",'status = 200\nprint(type(status).__name__)',"type() helps identify what Python is storing.")],["Writing true instead of True",'Comparing "200" with 200 without noticing the type',"Treating decimal data as text"],("What type is True?",["str","int","bool"],"bool"),"Create status_code = 404 and is_failed = True. Print both.","status_code = 404\nis_failed = True\nprint(status_code)\nprint(is_failed)","404\nTrue","404 has no quotes. True starts with capital T.","Create qa_name as text, total_tests = 10, pass_rate = 95.5, automation_ready = True. Print all four.","# Create four variables\n",["10","95.5","True"],["Uses requested types","Correct values","Prints all values","No unnecessary conversions"]),
+lesson(4,"Strings — Work With Text","Create, combine and inspect text values.","Strings are text inside quotes. QA automation uses strings for URLs, usernames, page titles, error messages, API fields and expected messages. Python has built-in string operations that make comparison and cleanup easier.",'message = "Login successful"\nprint(message.lower())',["Validate response messages","Normalize text before comparing","Build readable logs"],["Use single or double quotes","+ joins strings","lower() and upper() change case","in checks whether text contains something"],"Strings are the text your tests read, send and compare.",[("Combine strings",'test = "Login"\nresult = "PASS"\nprint(test + " - " + result)',"The + operator joins text."),("Lowercase",'message = "SUCCESS"\nprint(message.lower())',"Case normalization helps comparisons."),("Contains check",'email = "qa@example.com"\nprint("@" in email)',"The in operator can check content.")],["Joining a number directly to text","Forgetting parentheses on lower()","Using = instead of == in comparisons"],("How do you check @ exists in email?",['"@" in email','@ = email','email.@'],'"@" in email'),"Create message = API TEST PASSED and print it lowercase.",'message = "API TEST PASSED"\nprint(message.lower())',"api test passed","Use .lower() after the variable.","Create first = API and second = Automation. Print API Automation, then print it uppercase.","# Work with strings\n",["API Automation","API AUTOMATION"],["Creates both strings","Combines correctly","Uses uppercase","Correct output"]),
+lesson(5,"Operators — Compare Expected vs Actual","Use comparison operators to make validation decisions.","Automation is built around comparisons. A test has an expected value, the application returns an actual value, and Python compares them. The result is True or False, which later drives if/else and assertions.","== equal\n!= not equal\n> greater than\n< less than\n>= greater/equal\n<= less/equal",["Compare expected and actual","Check response-time limits","Validate counts and numeric values"],["= assigns","== compares","Comparisons return True/False","!= means not equal"],"actual == expected asks: are these two values the same?",[("Equality","expected = 200\nactual = 200\nprint(actual == expected)","Matching values return True."),("Not equal","expected = 200\nactual = 404\nprint(actual != expected)","Different values make != True."),("Performance limit","response_time = 1.8\nlimit = 2.0\nprint(response_time < limit)","Comparisons can express test rules.")],["Using = instead of ==","Reading != as equal","Comparing incompatible types"],("Which means not equal?",["==","!=","="],"!="),"Set expected = 200 and actual = 404. Print whether equal.","expected = 200\nactual = 404\nprint(actual == expected)","False","Use == to compare.","Set expected_time = 2 and actual_time = 3. Print whether actual is greater and whether they are equal.","# Compare the values\n",["True","False"],["Uses comparison operators","Correct variables","Correct booleans","Clear code"]),
+lesson(6,"Lists — Store Multiple Test Cases","Store and work with several related values.","A list is an ordered collection. Instead of creating test1, test2 and test3, you can put all test names into one list. Lists become powerful when loops run the same logic across many inputs.",'tests = ["Login", "Search", "Checkout"]\nprint(tests[0])\nprint(len(tests))',["Store multiple test inputs","Run tests across browsers/users","Keep expected values together"],["Lists use []","Indexes start at 0","len() counts items","append() adds an item"],"A list is a numbered shelf. The first item is shelf 0.",[("Read items",'tests = ["Login", "Search", "Checkout"]\nprint(tests[0])\nprint(tests[-1])',"0 is first; -1 is last."),("Count items",'browsers = ["Chrome", "Firefox", "Edge"]\nprint(len(browsers))',"len() gives the number of items."),("Add an item",'tests = ["Login"]\ntests.append("Search")\nprint(tests)',"append() adds to the end.")],["Using an index that does not exist","Forgetting quotes around text items","Using () instead of []"],("Index of Firefox in [Chrome, Firefox, Edge]?",["0","1","2"],"1"),"Create Chrome, Firefox, Edge list and print Firefox.",'browsers = ["Chrome", "Firefox", "Edge"]\nprint(browsers[1])',"Firefox","Second item uses index 1.","Create tests = [Login, Search, Checkout]. Print first, last and count.","# Create the list\n",["Login","Checkout","3"],["Correct list","Uses indexes","Uses len()","Correct output"]),
+lesson(7,"Dictionaries — Store API-Like Data","Work with key/value data similar to JSON.","A dictionary stores information as key/value pairs. This is one of the most important structures for API testers because JSON objects commonly become Python dictionaries after parsing.",'response = {"status": 200, "result": "PASS"}\nprint(response["status"])',["Read fields from API responses","Store structured test data","Represent users/orders/configuration"],["Dictionaries use {}","Each value has a key","Read with dictionary[key]","get() can handle optional keys"],'Think of {"status": 200} as the label status pointing to 200.',[("Read values",'response = {"status": 200, "result": "PASS"}\nprint(response["status"])',"Use a key to get its value."),("API-like user",'user = {"id": 2, "name": "Sam", "active": True}\nprint(user["name"])',"This resembles a JSON object."),("Safe get",'user = {"name": "Sam"}\nprint(user.get("email", "Not provided"))',"get() can provide a fallback.")],["Using a missing key","Forgetting quotes around string keys","Confusing indexes and keys"],("How do you read name?",['user["name"]','user[0]','user.name()'],'user["name"]'),"Create user with name Sam and role QA. Print role.",'user = {"name": "Sam", "role": "QA"}\nprint(user["role"])',"QA",'Use user["role"].',"Create response with id=2, name=Alex, active=True. Print all three.","# Create dictionary\n",["2","Alex","True"],["Creates dictionary","Correct keys/values","Reads keys","Correct output"]),
+lesson(8,"if / else — Decide PASS or FAIL","Choose what code runs based on a condition.","An if statement runs code when its condition is True. else provides the alternative. This converts simple comparisons into actual QA decisions such as PASS or FAIL.",'if condition:\n    # True path\nelse:\n    # False path',["Convert comparisons into PASS/FAIL","Handle different status codes","Apply rules to test data"],["Use a colon","Indent the block","Conditions evaluate True/False","elif adds another choice"],"IF the rule is true take path A, ELSE take path B.",[("Status validation",'status = 200\nif status == 200:\n    print("PASS")\nelse:\n    print("FAIL")',"A matching status takes PASS."),("Expected vs actual",'expected = "Success"\nactual = "Error"\nif actual == expected:\n    print("PASS")\nelse:\n    print("FAIL")',"The comparison controls the branch."),("Three choices",'status = 404\nif status == 200:\n    print("OK")\nelif status == 404:\n    print("NOT FOUND")\nelse:\n    print("OTHER")',"elif adds another condition.")],["Missing colon","Wrong indentation","Using = instead of =="],("When does else run?",["When if is False","When if is True","Before if"],"When if is False"),"Set status=404. Print PASS for 200, otherwise FAIL.",'status = 404\nif status == 200:\n    print("PASS")\nelse:\n    print("FAIL")',"FAIL","Remember colon and indentation.","Set expected=201 and actual=201. Print PASS if equal, otherwise FAIL.","# Add if/else\n",["PASS"],["Correct values","Correct comparison","Correct if/else","Indentation"]),
+lesson(9,"for Loops — Run Through Test Data","Repeat the same logic for every item in a collection.","A for loop takes items from a collection one at a time and runs the same block for each item. This lets a small amount of automation code test many users, endpoints, status codes or browsers.","for item in collection:\n    do_something(item)",["Run one validation across many inputs","Test several browsers/users","Process multiple results"],["Loop selects one item at a time","Body is indented","Lists work naturally with loops","range() creates number sequences"],"for test in tests means: give me each test one after another.",[("Loop tests",'tests = ["Login", "Search", "Checkout"]\nfor test in tests:\n    print(test)',"Runs once per test."),("Status codes","codes = [200, 404, 500]\nfor code in codes:\n    print(code)","code changes each iteration."),("Loop + condition",'codes = [200, 404]\nfor code in codes:\n    if code == 200:\n        print("PASS")\n    else:\n        print("FAIL")',"Loops and conditions combine in automation.")],["Forgetting indentation","Printing the whole list instead of item","Unnecessary list changes inside loop"],("How many iterations for [200,201,204]?",["1","2","3"],"3"),"Loop through [200,201,204] and print each.","codes = [200, 201, 204]\nfor code in codes:\n    print(code)","200\n201\n204","Use for item in list: then indent.","Create results=[PASS,PASS,FAIL]. Loop and print each.","# Loop results\n",["PASS","PASS","FAIL"],["Correct list","Uses for loop","Prints each item","Indentation"]),
+lesson(10,"while Loops — Repeat Until a Condition Changes","Repeat code while a condition stays True.","A while loop keeps running while its condition is True. In automation this can model retries or waiting. Beginners must update the condition, otherwise the loop may never stop.","while condition:\n    do_something()\n    update_condition",["Model retry attempts","Repeat until state changes","Understand polling/waiting concepts"],["Condition checked before each run","Update the counter/state","Avoid infinite loops","Prefer for when item count is known"],"while retry <= 3 means keep trying until retry becomes 4.",[("Count attempts","attempt = 1\nwhile attempt <= 3:\n    print(attempt)\n    attempt += 1","Counter changes so loop stops."),("Retry message",'retry = 1\nwhile retry <= 2:\n    print("Retry", retry)\n    retry += 1',"Looks like simple retry behaviour.")],["Forgetting to update counter","Creating an infinite loop","Using while where for is clearer"],("What prevents an infinite loop?",["Increase the counter","print()","Variable name"],"Increase the counter"),"Use while to print 1,2,3.","count = 1\nwhile count <= 3:\n    print(count)\n    count += 1","1\n2\n3","Increase count inside the loop.","Create retry=1. While retry<=2 print Retry + number and increase retry.","# Retry loop\n",["Retry 1","Retry 2"],["Correct counter","Correct condition","Updates counter","Stops correctly"]),
+lesson(11,"Functions — Build Reusable QA Logic","Package repeated logic into a reusable block.","A function is a named block of code you can call whenever needed. This is where beginner Python starts to look like real automation: instead of copying validation logic everywhere, write it once and reuse it.","def function_name(parameter):\n    # logic\n    return result",["Reuse validation logic","Keep tests readable","Prepare for API clients/helpers"],["def starts a function","Parameters are inputs","return sends a value back","A function runs only when called"],"A function is a small machine: input goes in, logic runs, result comes out.",[("Simple function",'def show_result():\n    print("PASS")\n\nshow_result()',"Defining and calling are separate steps."),("Function with inputs",'def validate_status(actual, expected):\n    if actual == expected:\n        return "PASS"\n    return "FAIL"\n\nprint(validate_status(200, 200))',"Parameters make logic reusable."),("Reuse function",'def validate(actual, expected):\n    return actual == expected\n\nprint(validate(200, 200))\nprint(validate(404, 200))',"Same logic, different inputs.")],["Forgetting to call the function","Confusing print and return","Bad indentation"],("Which keyword sends a value back?",["print","return","def"],"return"),"Create add(a,b), return a+b, print add(2,3).","def add(a, b):\n    return a + b\n\nprint(add(2, 3))","5","Use def and return.","Create validate_status(actual,expected). Return PASS if equal else FAIL. Test (200,200) and (404,200).","# Build function\n",["PASS","FAIL"],["Two parameters","Correct comparison","Returns PASS/FAIL","Tests both cases"]),
+lesson(12,"Final Mini Project — QA Result Evaluator","Combine the Python basics into one automation-style program.","This project is the bridge to API automation. You combine a function, list, loop and validation to evaluate several status codes. The aim is not advanced Python; it is proving you can connect the essential building blocks.","function → list → loop → validation → result",["Shows concepts working together","Looks like future API validation","Prepares for requests and pytest"],["Keep validation reusable","Loop through data","Separate expected/actual","Print readable results"],"You are combining small Python tools into a tiny test automation workflow.",[("Complete mini flow",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"One reusable function validates every code.")],["Hard-coding results","Forgetting to loop all values","Duplicating validation logic"],("Which concept makes validation reusable?",["Function","Comment","print only"],"Function"),"Run the example and inspect which code fails.",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"200 PASS\n404 FAIL\n200 PASS","Expected is 200; any other code fails.","Create validate_status. Evaluate [200,201,500] against 200. Print each code with PASS/FAIL and Total tests: 3.","# Final project\n",["200 PASS","201 FAIL","500 FAIL","Total tests: 3"],["Reusable function","Loops all codes","Correct results","Prints total count"])
 ]
 
-# ---------------- Safe beginner runner ----------------
-ALLOWED_BUILTINS = {
-    "print": print,
-    "len": len,
-    "str": str,
-    "int": int,
-    "float": float,
-    "bool": bool,
-    "list": list,
-    "dict": dict,
-    "range": range,
-    "type": type,
-    "sum": sum,
-    "min": min,
-    "max": max,
-    "abs": abs,
-}
+ALLOWED={"print":print,"len":len,"str":str,"int":int,"float":float,"bool":bool,"list":list,"dict":dict,"range":range,"type":type,"sum":sum,"min":min,"max":max,"abs":abs}
+BLOCKED=(ast.Import,ast.ImportFrom,ast.ClassDef,ast.Lambda,ast.With,ast.AsyncWith,ast.AsyncFunctionDef,ast.Await,ast.Yield,ast.YieldFrom,ast.Global,ast.Nonlocal,ast.Delete)
+BAD={"eval","exec","open","compile","__import__","globals","locals","vars","input","help","dir","getattr","setattr","delattr","breakpoint"}
 
-BLOCKED_AST = (
-    ast.Import,
-    ast.ImportFrom,
-    ast.ClassDef,
-    ast.Lambda,
-    ast.With,
-    ast.AsyncWith,
-    ast.AsyncFunctionDef,
-    ast.Await,
-    ast.Yield,
-    ast.YieldFrom,
-    ast.Global,
-    ast.Nonlocal,
-    ast.Delete,
-)
+def validate_code(code):
+    if len(code)>5000:return False,"Code is too long for this beginner practice area."
+    try:tree=ast.parse(code)
+    except SyntaxError as e:return False,f"Syntax error on line {e.lineno}: {e.msg}"
+    for n in ast.walk(tree):
+        if isinstance(n,BLOCKED):return False,f"{type(n).__name__} is not needed in this beginner course."
+        if isinstance(n,ast.Name) and (n.id.startswith("__") or n.id in BAD):return False,f"'{n.id}' is not allowed in the practice runner."
+        if isinstance(n,ast.Attribute) and n.attr.startswith("__"):return False,"Special Python attributes are not allowed."
+    return True,""
 
-BLOCKED_NAMES = {"eval", "exec", "open", "compile", "__import__", "globals", "locals", "vars", "input", "help", "dir", "getattr", "setattr", "delattr", "breakpoint"}
-
-
-def validate_beginner_code(code: str):
-    if len(code) > 5000:
-        return False, "Code is too long for this beginner practice area."
+def run_code(code):
+    ok,msg=validate_code(code)
+    if not ok:return False,msg
+    out=io.StringIO();env={"__builtins__":ALLOWED}
     try:
-        tree = ast.parse(code)
-    except SyntaxError as exc:
-        return False, f"Syntax error on line {exc.lineno}: {exc.msg}"
+        with contextlib.redirect_stdout(out):exec(compile(code,"<student_code>","exec"),env,env)
+        text=out.getvalue().rstrip()
+        return True,(text[:4000]+"\n... output shortened ..." if len(text)>4000 else text) or "(No output — your code ran successfully.)"
+    except Exception as e:return False,f"{type(e).__name__}: {e}"
 
-    for node in ast.walk(tree):
-        if isinstance(node, BLOCKED_AST):
-            return False, f"{type(node).__name__} is not needed in this beginner course."
-        if isinstance(node, ast.Name) and (node.id.startswith("__") or node.id in BLOCKED_NAMES):
-            return False, f"'{node.id}' is not allowed in the practice runner."
-        if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
-            return False, "Special Python attributes are not allowed in the practice runner."
-    return True, ""
-
-
-def run_beginner_code(code: str):
-    ok, message = validate_beginner_code(code)
-    if not ok:
-        return False, message
-
-    output = io.StringIO()
-    env = {"__builtins__": ALLOWED_BUILTINS}
+def norm(x):return "\n".join(line.rstrip() for line in str(x).strip().splitlines())
+def local_grade(m,code,out):
+    expected=[str(x).lower() for x in m["a_expected"]];low=str(out).lower();hits=sum(x in low for x in expected);score=min(100,round(hits/max(len(expected),1)*65)+25)
+    return {"score":score,"result":"PASS" if score>=PASS_SCORE else "KEEP PRACTICING","strengths":["Your code runs successfully."]+(["Required output is present."] if hits==len(expected) else []),"improvements":([] if hits==len(expected) else ["Some required output is missing or different."]),"feedback":"Review the rubric and compare your output with the assignment requirements."}
+def ai_grade(m,code,out):
+    key=st.secrets.get("OPENAI_API_KEY")
+    if not key:return local_grade(m,code,out)
+    prompt=f'''You are a patient Python instructor grading a beginner QA automation student. Grade only this assignment.\nMODULE: {m['title']}\nGOAL: {m['goal']}\nASSIGNMENT: {m['assignment']}\nRUBRIC: {json.dumps(m['rubric'])}\nEXPECTED: {json.dumps(m['a_expected'])}\nCODE:\n{code}\nOUTPUT:\n{out}\nReturn only JSON: {{"score":0,"strengths":[""],"improvements":[""],"feedback":""}}. Be specific and beginner-friendly.'''
     try:
-        with contextlib.redirect_stdout(output):
-            exec(compile(code, "<student_code>", "exec"), env, env)
-        text = output.getvalue().rstrip()
-        if len(text) > 4000:
-            text = text[:4000] + "\n... output shortened ..."
-        return True, text or "(No output — your code ran successfully.)"
-    except Exception as exc:
-        return False, f"{type(exc).__name__}: {exc}"
+        raw=OpenAI(api_key=key).responses.create(model=MODEL,input=prompt).output_text.strip().removeprefix("```json").removesuffix("```").strip();data=json.loads(raw);data["score"]=max(0,min(100,int(data.get("score",0))));data["result"]="PASS" if data["score"]>=PASS_SCORE else "KEEP PRACTICING";return data
+    except Exception:return local_grade(m,code,out)
 
+for k,v in {"student_name":"","student_id":"","completed":{},"assignment_results":{},"quiz_results":{}}.items():
+    if k not in st.session_state:st.session_state[k]=v
 
-def normalize(text):
-    return "\n".join(line.rstrip() for line in str(text).strip().splitlines())
-
-
-def practice_feedback(actual, expected):
-    if normalize(actual) == normalize(expected):
-        return True, "Perfect — your output matches the expected result."
-    return False, "Your code ran, but the output is different from the expected result. Compare the two outputs and try again."
-
-
-def local_assignment_score(module, code, output, ran_ok):
-    if not ran_ok:
-        return 25, ["Code does not run yet."], ["Fix the runtime or syntax error first."]
-    expected = [str(x).lower() for x in module["assignment_expected"]]
-    out = str(output).lower()
-    hits = sum(1 for item in expected if item.lower() in out)
-    output_score = round((hits / max(len(expected), 1)) * 55)
-    structure_score = 0
-    ok, _ = validate_beginner_code(code)
-    if ok:
-        structure_score += 15
-    if len(code.strip().splitlines()) >= 2:
-        structure_score += 10
-    if "#" in code:
-        structure_score += 5
-    score = min(100, output_score + structure_score + 15)
-    strengths = []
-    improvements = []
-    if hits == len(expected):
-        strengths.append("Your output covers the required assignment results.")
-    else:
-        improvements.append("Some required output is missing or different.")
-    if ok:
-        strengths.append("Your code uses beginner-safe Python syntax.")
-    return score, strengths, improvements
-
-
-def ai_grade(module, code, output):
-    key = st.secrets.get("OPENAI_API_KEY")
-    if not key:
-        score, strengths, improvements = local_assignment_score(module, code, output, True)
-        return {
-            "score": score,
-            "result": "PASS" if score >= PASS_SCORE else "KEEP PRACTICING",
-            "strengths": strengths,
-            "improvements": improvements,
-            "feedback": "Local evaluator used because OPENAI_API_KEY is not configured.",
-        }
-
-    prompt = f"""
-You are a patient Python instructor grading a beginner QA automation student.
-Grade ONLY the assignment below. Do not reward unrelated advanced code.
-Be encouraging but accurate.
-
-MODULE: {module['title']}
-LEARNING GOAL: {module['goal']}
-ASSIGNMENT: {module['assignment']}
-RUBRIC: {json.dumps(module['rubric'])}
-EXPECTED OUTPUT IDEAS: {json.dumps(module['assignment_expected'])}
-
-STUDENT CODE:
-{code}
-
-ACTUAL OUTPUT:
-{output}
-
-Return ONLY valid JSON with this exact structure:
-{{
-  "score": 0-100 integer,
-  "result": "PASS" or "KEEP PRACTICING",
-  "strengths": ["short point", "short point"],
-  "improvements": ["short point", "short point"],
-  "feedback": "2-4 sentence beginner-friendly explanation"
-}}
-A score of 70 or more is PASS.
-""".strip()
-
-    client = OpenAI(api_key=key)
-    response = client.responses.create(model=MODEL, input=prompt)
-    raw = response.output_text.strip()
-    raw = raw.removeprefix("```json").removesuffix("```").strip()
-    try:
-        data = json.loads(raw)
-        data["score"] = max(0, min(100, int(data.get("score", 0))))
-        data["result"] = "PASS" if data["score"] >= PASS_SCORE else "KEEP PRACTICING"
-        return data
-    except Exception:
-        score, strengths, improvements = local_assignment_score(module, code, output, True)
-        return {
-            "score": score,
-            "result": "PASS" if score >= PASS_SCORE else "KEEP PRACTICING",
-            "strengths": strengths,
-            "improvements": improvements,
-            "feedback": "The AI response could not be parsed, so the local evaluator provided the score.",
-        }
-
-# ---------------- State ----------------
-if "student_name" not in st.session_state:
-    st.session_state.student_name = ""
-if "student_id" not in st.session_state:
-    st.session_state.student_id = ""
-if "completed" not in st.session_state:
-    st.session_state.completed = {}
-if "assignment_results" not in st.session_state:
-    st.session_state.assignment_results = {}
-
-# ---------------- Header ----------------
-st.markdown(
-    f"""
-    <div class="hero">
-      <div class="hero-title">🐍 Python QA Academy</div>
-      <div class="hero-copy">Learn Python from print() to reusable functions — with QA examples, live practice, assignments and AI evaluation.</div>
-      <div class="chip-row"><span class="chip">Beginner friendly</span><span class="chip">▶ Run code</span><span class="chip">🧪 QA examples</span><span class="chip">🤖 AI feedback</span></div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
+st.markdown('''<div class="hero"><div class="hero-title">🐍 Python QA Academy</div><div class="hero-copy">A focused Python foundation for QA engineers. Learn each concept with tutorial-style notes, see QA examples and outputs, practice live, complete assignments and get instructor-style evaluation.</div><div class="chip-row"><span class="chip">Beginner friendly</span><span class="chip">📖 Tutorial lessons</span><span class="chip">▶ Live practice</span><span class="chip">🧪 QA examples</span><span class="chip">🤖 AI evaluation</span></div></div>''',unsafe_allow_html=True)
 with st.sidebar:
-    st.markdown("### 🎓 Student")
-    st.session_state.student_name = st.text_input("Name", value=st.session_state.student_name)
-    st.session_state.student_id = st.text_input("Student ID / Email", value=st.session_state.student_id)
-    st.divider()
-    st.markdown("### 📚 Learning Path")
-    module_labels = [f"{m['id']}. {m['title'].split(' — ')[0]}" for m in MODULES]
-    selected_label = st.radio("Choose module", module_labels, label_visibility="collapsed")
-    selected_index = module_labels.index(selected_label)
-    done = sum(1 for m in MODULES if st.session_state.completed.get(m["id"]))
-    st.progress(done / len(MODULES), text=f"Progress: {done}/{len(MODULES)} modules passed")
-
-module = MODULES[selected_index]
-
-# Top progress metrics
-m1, m2, m3 = st.columns(3)
-m1.metric("Current Module", f"{module['id']} / {len(MODULES):02d}")
-m2.metric("Modules Passed", sum(1 for v in st.session_state.completed.values() if v))
-best = max([r.get("score", 0) for r in st.session_state.assignment_results.values()] or [0])
-m3.metric("Best Assignment Score", f"{best}%")
-
-st.markdown(f'<div class="kicker">Module {module["id"]}</div><div class="title">{module["title"]}</div><div class="copy">Goal: {module["goal"]}</div>', unsafe_allow_html=True)
-
-learn_tab, practice_tab, assignment_tab, progress_tab = st.tabs(["📘 Learn", "🧪 Practice", "📝 Assignment", "📊 Progress"])
-
-with learn_tab:
-    st.markdown("### Easy notes")
-    st.markdown(f'<div class="note">{module["notes"]}</div>', unsafe_allow_html=True)
-    st.markdown("### Think about it this way")
-    st.markdown(f'<div class="mental">💡 {module["mental"]}</div>', unsafe_allow_html=True)
-    st.markdown("### Working example")
-    st.code(module["example"], language="python")
-    ok, example_output = run_beginner_code(module["example"])
-    if ok:
-        st.caption("Example output")
-        st.markdown(f'<div class="console">{example_output}</div>', unsafe_allow_html=True)
-    st.info("Next: open **🧪 Practice**, edit the code and run it yourself.")
-
-with practice_tab:
-    st.markdown("### Practice it yourself")
-    st.write(module["practice_prompt"])
-    practice_key = f"practice_code_{module['id']}"
-    if practice_key not in st.session_state:
-        st.session_state[practice_key] = module["practice_start"]
-    practice_code = st.text_area("Your practice code", key=practice_key, height=190)
-    c1, c2 = st.columns([1, 1])
-    run_practice = c1.button("▶ Run Practice", type="primary", use_container_width=True, key=f"runp_{module['id']}")
-    show_hint = c2.button("💡 Show Hint", use_container_width=True, key=f"hint_{module['id']}")
-    if show_hint:
-        st.info(module["hint"])
-    if run_practice:
-        ok, result = run_beginner_code(practice_code)
-        st.markdown("#### Your result")
-        st.markdown(f'<div class="console">{result}</div>', unsafe_allow_html=True)
-        if ok:
-            matched, feedback = practice_feedback(result, module["practice_expected"])
-            if matched:
-                st.success("✅ " + feedback)
-            else:
-                st.warning("🟡 " + feedback)
-                with st.expander("Compare with expected output"):
-                    st.code(module["practice_expected"], language="text")
+    st.markdown("### 🎓 Student");st.session_state.student_name=st.text_input("Name",value=st.session_state.student_name);st.session_state.student_id=st.text_input("Student ID / Email",value=st.session_state.student_id);st.divider();st.markdown("### 📚 Python Learning Path")
+    labels=[f"{m['id']}. {m['title'].split(' — ')[0]}" for m in MODULES];selected=st.radio("Choose module",labels,label_visibility="collapsed");idx=labels.index(selected);done=sum(bool(st.session_state.completed.get(m["id"])) for m in MODULES);st.progress(done/len(MODULES),text=f"Progress: {done}/{len(MODULES)} passed");st.caption("Focused on Python needed for QA automation — not unnecessary advanced depth.")
+m=MODULES[idx];c1,c2,c3,c4=st.columns(4);c1.metric("Module",f"{m['id']} / {len(MODULES):02d}");c2.metric("Modules Passed",sum(bool(x) for x in st.session_state.completed.values()));c3.metric("Best Score",f"{max([x.get('score',0) for x in st.session_state.assignment_results.values()] or [0])}%");c4.metric("Pass Mark",f"{PASS_SCORE}%")
+st.markdown(f'<div class="kicker">Module {m["id"]}</div><div class="title">{m["title"]}</div><div class="copy">Learning goal: {m["goal"]}</div>',unsafe_allow_html=True)
+learn,practice,assignment,progress=st.tabs(["📘 Learn","🧪 Practice","📝 Assignment","📊 Progress"])
+with learn:
+    st.markdown("### 1. Understand the concept");st.markdown(f'<div class="lesson-card">{m["overview"]}</div>',unsafe_allow_html=True);st.markdown("### 2. Basic syntax");st.code(m["syntax"],language="python")
+    a,b=st.columns(2)
+    with a:
+        st.markdown("### Why QA engineers use it")
+        for x in m["qa_use"]:st.write("✅ "+x)
+    with b:
+        st.markdown("### Key points")
+        for x in m["key_points"]:st.write("• "+x)
+    st.markdown(f'<div class="mental">💡 <b>Simple mental model:</b> {m["mental"]}</div>',unsafe_allow_html=True);st.markdown("### 3. Learn by examples")
+    for i,(name,code,explain) in enumerate(m["examples"],1):
+        with st.container(border=True):
+            st.markdown(f"#### Example {i} — {name}");st.write(explain);st.code(code,language="python");ok,out=run_code(code)
+            if ok:st.caption("Output");st.markdown(f'<div class="console">{out}</div>',unsafe_allow_html=True)
+    st.markdown("### 4. Common beginner mistakes");st.markdown('<div class="warning"><b>Watch for these:</b></div>',unsafe_allow_html=True)
+    for x in m["mistakes"]:st.write("⚠️ "+x)
+    st.markdown("### 5. Quick knowledge check");q,opts,ans=m["quiz"];choice=st.radio(q,opts,index=None,key=f"q_{m['id']}")
+    if st.button("Check Answer",key=f"qb_{m['id']}"):
+        if choice==ans:st.success("✅ Correct. You understand the key idea.");st.session_state.quiz_results[m["id"]]=True
+        elif choice is None:st.warning("Choose an answer first.")
+        else:st.error("Not quite. Review the notes and examples, then try again.")
+    st.info("Next: open **🧪 Practice** and change the code yourself.")
+with practice:
+    st.markdown("### Practice it yourself");st.write(m["practice"]);st.caption("Edit the starter code, run it and compare your output. Practice does not affect your assignment score.")
+    pk=f"p_{m['id']}"
+    if pk not in st.session_state:st.session_state[pk]=m["start"]
+    code=st.text_area("Your practice code",key=pk,height=220);p1,p2,p3=st.columns(3);run=p1.button("▶ Run Practice",type="primary",use_container_width=True,key=f"rp_{m['id']}");hint=p2.button("💡 Show Hint",use_container_width=True,key=f"h_{m['id']}");reset=p3.button("↺ Reset",use_container_width=True,key=f"r_{m['id']}")
+    if hint:st.info(m["hint"])
+    if reset:st.session_state[pk]=m["start"];st.rerun()
+    if run:
+        ok,out=run_code(code);st.markdown("#### Your output");st.markdown(f'<div class="console">{out}</div>',unsafe_allow_html=True)
+        if ok and norm(out)==norm(m["expected"]):st.success("✅ Perfect — your output matches the expected result.")
+        elif ok:
+            st.warning("🟡 Your code ran, but output is different.")
+            with st.expander("Show expected output"):st.code(m["expected"],language="text")
+        else:st.error("❌ Your code did not run. Read the error and try again.")
+with assignment:
+    st.markdown("### Module Assignment");st.write(m["assignment"]);st.caption("Run your code first. When ready, ask the instructor agent to evaluate it.")
+    with st.expander("📋 Assignment rubric"):
+        for x in m["rubric"]:st.write("• "+x)
+    ak=f"a_{m['id']}"
+    if ak not in st.session_state:st.session_state[ak]=m["a_start"]
+    acode=st.text_area("Your assignment code",key=ak,height=260);a1,a2=st.columns(2);runa=a1.button("▶ Run Assignment",type="primary",use_container_width=True,key=f"ra_{m['id']}");eva=a2.button("🤖 Evaluate Assignment",use_container_width=True,key=f"e_{m['id']}");okey=f"out_{m['id']}";okflag=f"ok_{m['id']}"
+    if runa:
+        ok,out=run_code(acode);st.session_state[okey]=out;st.session_state[okflag]=ok
+    if okey in st.session_state:st.markdown("#### Assignment output");st.markdown(f'<div class="console">{st.session_state[okey]}</div>',unsafe_allow_html=True)
+    if eva:
+        if not st.session_state.student_name.strip():st.error("Enter your name in the sidebar before evaluation.")
         else:
-            st.error("❌ Your code did not run. Read the error, adjust the code, and try again.")
-
-with assignment_tab:
-    st.markdown("### Assignment")
-    st.write(module["assignment"])
-    with st.expander("What will be evaluated?"):
-        for item in module["rubric"]:
-            st.write("• " + item)
-    assignment_key = f"assignment_code_{module['id']}"
-    if assignment_key not in st.session_state:
-        st.session_state[assignment_key] = module["assignment_start"]
-    assignment_code = st.text_area("Your assignment code", key=assignment_key, height=230)
-    a1, a2 = st.columns(2)
-    run_assignment = a1.button("▶ Run Assignment", type="primary", use_container_width=True, key=f"runa_{module['id']}")
-    evaluate = a2.button("🤖 Evaluate Assignment", use_container_width=True, key=f"eval_{module['id']}")
-
-    output_key = f"assignment_output_{module['id']}"
-    ok_key = f"assignment_ok_{module['id']}"
-    if run_assignment:
-        ok, result = run_beginner_code(assignment_code)
-        st.session_state[output_key] = result
-        st.session_state[ok_key] = ok
-
-    if output_key in st.session_state:
-        st.markdown("#### Assignment output")
-        st.markdown(f'<div class="console">{st.session_state[output_key]}</div>', unsafe_allow_html=True)
-        if not st.session_state.get(ok_key, False):
-            st.error("Fix the code error before requesting evaluation.")
-
-    if evaluate:
-        if not st.session_state.student_name.strip():
-            st.error("Enter your name in the sidebar before evaluation.")
-        else:
-            ok, result = run_beginner_code(assignment_code)
-            st.session_state[output_key] = result
-            st.session_state[ok_key] = ok
-            if not ok:
-                evaluation = {
-                    "score": 20,
-                    "result": "KEEP PRACTICING",
-                    "strengths": ["You attempted the assignment."],
-                    "improvements": ["Fix the code so it runs before focusing on the final result."],
-                    "feedback": f"Your current code returns: {result}",
-                }
-            else:
-                with st.spinner("Instructor agent is reviewing your code and result..."):
-                    evaluation = ai_grade(module, assignment_code, result)
-            st.session_state.assignment_results[module["id"]] = {
-                **evaluation,
-                "module": module["title"],
-                "code": assignment_code,
-                "output": result,
-                "evaluated_at": datetime.now().isoformat(timespec="seconds"),
-            }
-            if evaluation["score"] >= PASS_SCORE:
-                st.session_state.completed[module["id"]] = True
+            ok,out=run_code(acode);evaluation=ai_grade(m,acode,out) if ok else {"score":20,"result":"KEEP PRACTICING","strengths":["You attempted the assignment."],"improvements":["Fix the code so it runs."],"feedback":out};st.session_state.assignment_results[m["id"]]={**evaluation,"module":m["title"],"code":acode,"output":out,"evaluated_at":datetime.now().isoformat(timespec="seconds")};st.session_state[okey]=out;st.session_state[okflag]=ok
+            if evaluation["score"]>=PASS_SCORE:st.session_state.completed[m["id"]]=True
             st.rerun()
-
-    saved = st.session_state.assignment_results.get(module["id"])
+    saved=st.session_state.assignment_results.get(m["id"])
     if saved:
-        st.divider()
-        st.markdown("### Instructor evaluation")
-        e1, e2 = st.columns(2)
-        e1.metric("Score", f"{saved['score']}%")
-        e2.metric("Result", saved["result"])
-        if saved["score"] >= PASS_SCORE:
-            st.success("✅ Module passed")
-        else:
-            st.warning("Keep practicing, then evaluate again.")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Strengths**")
-            for item in saved.get("strengths", []):
-                st.write("✅ " + item)
-        with col2:
+        st.divider();st.markdown("### Instructor Evaluation");e1,e2=st.columns(2);e1.metric("Score",f"{saved['score']}%");e2.metric("Result",saved["result"])
+        if saved["score"]>=PASS_SCORE:st.success("✅ Module passed — move to the next lesson.")
+        else:st.warning("Keep practicing and evaluate again.")
+        x,y=st.columns(2)
+        with x:
+            st.markdown("**What you did well**")
+            for s in saved.get("strengths",[]):st.write("✅ "+s)
+        with y:
             st.markdown("**Improve next**")
-            for item in saved.get("improvements", []):
-                st.write("➡️ " + item)
-        st.info(saved.get("feedback", ""))
-
-with progress_tab:
-    st.markdown("### Your course progress")
-    rows = []
-    for m in MODULES:
-        result = st.session_state.assignment_results.get(m["id"], {})
-        rows.append({
-            "Module": f"{m['id']} — {m['title']}",
-            "Score": result.get("score", "—"),
-            "Status": "PASS" if st.session_state.completed.get(m["id"]) else ("Attempted" if result else "Not started"),
-        })
-    st.dataframe(rows, use_container_width=True, hide_index=True)
-    report = {
-        "student_name": st.session_state.student_name,
-        "student_id": st.session_state.student_id,
-        "modules_passed": sum(1 for v in st.session_state.completed.values() if v),
-        "total_modules": len(MODULES),
-        "assignment_results": st.session_state.assignment_results,
-    }
-    st.download_button(
-        "↓ Download Progress Report",
-        json.dumps(report, indent=2).encode(),
-        f"{st.session_state.student_name or 'student'}_python_qa_progress.json",
-        "application/json",
-        use_container_width=True,
-    )
-
-st.caption("Practice runner is intentionally restricted to beginner Python features. Course progress is stored only in the current Streamlit session unless you download the report.")
+            for s in saved.get("improvements",[]):st.write("➡️ "+s)
+        st.info(saved.get("feedback",""))
+with progress:
+    st.markdown("### Your Course Progress");rows=[]
+    for x in MODULES:
+        r=st.session_state.assignment_results.get(x["id"],{});rows.append({"Module":f"{x['id']} — {x['title']}","Quiz":"✓" if st.session_state.quiz_results.get(x["id"]) else "—","Score":r.get("score","—"),"Status":"PASS" if st.session_state.completed.get(x["id"]) else ("Attempted" if r else "Not started")})
+    st.dataframe(rows,use_container_width=True,hide_index=True);report={"student_name":st.session_state.student_name,"student_id":st.session_state.student_id,"modules_passed":sum(bool(v) for v in st.session_state.completed.values()),"total_modules":len(MODULES),"assignment_results":st.session_state.assignment_results};st.download_button("↓ Download Progress Report",json.dumps(report,indent=2).encode(),f"{st.session_state.student_name or 'student'}_python_qa_progress.json","application/json",use_container_width=True)
+st.caption("Python QA Academy teaches the Python foundation needed for QA automation without unnecessary advanced depth. Practice code runs in a restricted beginner sandbox.")
