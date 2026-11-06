@@ -2,6 +2,7 @@
 from collections import Counter
 import streamlit as st
 from expanded_lessons import expanded_steps
+from chapter_journey import build_journey
 
 def workshop_steps(m):
     examples=m["examples"]
@@ -29,7 +30,7 @@ def output_matches(actual,expected):
     return all(have[k]>=v for k,v in need.items())
 
 def render_workshop(m,run_code,full_solution):
-    steps=workshop_steps(m)
+    steps=build_journey(m)
     mid=m["id"]
     poskey=f"workshop_position_{mid}"
     donekey=f"workshop_completed_{mid}"
@@ -38,7 +39,7 @@ def render_workshop(m,run_code,full_solution):
     pos=min(st.session_state[poskey],len(steps)-1)
     step=steps[pos]
     st.progress(len(st.session_state[donekey])/len(steps),text=f"Chapter {mid}: {len(st.session_state[donekey])}/{len(steps)} steps completed")
-    st.caption(f"Step {pos+1} of {len(steps)}")
+    st.caption(f"Step {pos+1} of {len(steps)} · {m['title']}")
     st.subheader(step["title"])
     left,right=st.columns([1,1],gap="large")
     with left:
