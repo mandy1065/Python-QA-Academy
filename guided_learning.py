@@ -1,5 +1,6 @@
 """Guided, small-step learning flow for Python QA Academy."""
 import streamlit as st
+from collections import Counter
 
 def steps_for(m):
     example_name, example_code, example_explanation = m["examples"][0]
@@ -60,7 +61,7 @@ def render_guided(m, run_code, full_solution):
                 if expected is None:
                     correct=True
                 elif isinstance(expected,list):
-                    correct=all(str(value).lower() in out.lower() for value in set(expected))
+                    correct=all(Counter(line.strip().casefold() for line in out.splitlines())[value.strip().casefold()] >= count for value,count in Counter(str(v).strip().casefold() for v in expected).items())
                 else:
                     correct=out.strip()==str(expected).strip()
                 if correct:
