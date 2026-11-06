@@ -4,6 +4,7 @@ import io
 import json
 import sys
 import html
+import os
 from datetime import datetime
 
 import streamlit as st
@@ -11,7 +12,15 @@ from guided_learning import render_guided
 from openai import OpenAI
 
 st.set_page_config(page_title="Python QA Academy", page_icon="🐍", layout="wide")
-MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.4-nano")
+def optional_secret(name, default=None):
+    try:
+        return st.secrets.get(name, os.environ.get(name, default))
+    except (FileNotFoundError, Exception) as exc:
+        if type(exc).__name__ == "StreamlitSecretNotFoundError":
+            return os.environ.get(name, default)
+        raise
+
+MODEL = optional_secret("OPENAI_MODEL", "gpt-5.4-nano")
 PASS_SCORE = 70
 
 st.markdown("""
@@ -161,7 +170,7 @@ def local_grade(m,code,out):
             "feedback":"Well done! Check your code against the rubric and try changing the input values."}
 
 def ai_grade(m,code,out):
-    key=st.secrets.get("OPENAI_API_KEY")
+    key=optional_secret("OPENAI_API_KEY")
     if not key:return local_grade(m,code,out)
     prompt=f'''You are a patient Python instructor grading a beginner QA automation student. Grade only this assignment.\nMODULE: {m['title']}\nGOAL: {m['goal']}\nASSIGNMENT: {m['assignment']}\nRUBRIC: {json.dumps(m['rubric'])}\nEXPECTED: {json.dumps(m['a_expected'])}\nCODE:\n{code}\nOUTPUT:\n{out}\nReturn only JSON: {{"score":0,"strengths":[""],"improvements":[""],"feedback":""}}. Be specific and beginner-friendly.'''
     try:
