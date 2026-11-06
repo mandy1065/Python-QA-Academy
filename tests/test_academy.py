@@ -16,6 +16,7 @@ module=ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[]))
 scope={"ast":ast,"io":io,"contextlib":__import__("contextlib"),"sys":__import__("sys"),"Counter":collections.Counter}
 exec(compile(module,str(ROOT/"app.py"),"exec"),scope)
 from guided_learning import steps_for
+from workshop import workshop_steps, output_matches
 
 class AcademyTests(unittest.TestCase):
     def test_all_chapters_have_content(self):
@@ -28,6 +29,7 @@ class AcademyTests(unittest.TestCase):
                 self.assertTrue(m["assignment"])
                 self.assertGreaterEqual(len(m["rubric"]),3)
                 self.assertEqual(len(steps_for(m)),6)
+                self.assertEqual(len(workshop_steps(m)),10)
 
     def test_all_solutions_run_and_grade_pass(self):
         for m in scope["MODULES"]:
@@ -37,6 +39,18 @@ class AcademyTests(unittest.TestCase):
                 self.assertTrue(ok,out)
                 result=scope["local_grade"](m,solution,out)
                 self.assertEqual(result["result"],"PASS",result)
+
+    def test_workshop_expected_outputs(self):
+        for m in scope["MODULES"]:
+            with self.subTest(module=m["id"]):
+                steps=workshop_steps(m)
+                self.assertEqual(len(steps),10)
+                for step in steps:
+                    if step["type"]=="code" and step["solution"] is not None:
+                        ok,out=scope["run_code"](step["solution"])
+                        self.assertTrue(ok,out)
+                        self.assertTrue(output_matches(out,step["expected"]),out)
+                self.assertFalse(output_matches("WRONG",m["a_expected"]))
 
     def test_wrong_code_fails(self):
         for m in scope["MODULES"]:
