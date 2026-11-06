@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 
 import streamlit as st
+from guided_learning import render_guided
 from openai import OpenAI
 
 st.set_page_config(page_title="Python QA Academy", page_icon="🐍", layout="wide")
@@ -142,7 +143,7 @@ with st.sidebar:
     labels=[f"{m['id']}. {m['title'].split(' — ')[0]}" for m in MODULES];selected=st.radio("Choose module",labels,label_visibility="collapsed");idx=labels.index(selected);done=sum(bool(st.session_state.completed.get(m["id"])) for m in MODULES);st.progress(done/len(MODULES),text=f"Progress: {done}/{len(MODULES)} passed");st.caption("Focused on Python needed for QA automation — not unnecessary advanced depth.")
 m=MODULES[idx];c1,c2,c3,c4=st.columns(4);c1.metric("Module",f"{m['id']} / {len(MODULES):02d}");c2.metric("Modules Passed",sum(bool(x) for x in st.session_state.completed.values()));c3.metric("Best Score",f"{max([x.get('score',0) for x in st.session_state.assignment_results.values()] or [0])}%");c4.metric("Pass Mark",f"{PASS_SCORE}%")
 st.markdown(f'<div class="kicker">Module {m["id"]}</div><div class="title">{m["title"]}</div><div class="copy">Learning goal: {m["goal"]}</div>',unsafe_allow_html=True)
-learn,slides,practice,assignment,progress=st.tabs(["📘 Learn","📽️ Slides","🧪 Practice","📝 Assignment","📊 Progress"])
+learn,guided,slides,practice,assignment,progress=st.tabs(["📘 Learn","🚀 Guided Lessons","📽️ Slides","🧪 Practice","📝 Assignment","📊 Progress"])
 with learn:
     st.markdown("### 1. Understand the concept");st.markdown(f'<div class="lesson-card">{m["overview"]}</div>',unsafe_allow_html=True);st.markdown("### 2. Basic syntax");st.code(m["syntax"],language="python")
     a,b=st.columns(2)
@@ -165,6 +166,8 @@ with learn:
         elif choice is None:st.warning("Choose an answer first.")
         else:st.error("Not quite. Review the notes and examples, then try again.")
     st.info("Next: open **🧪 Practice** and change the code yourself.")
+with guided:
+    render_guided(m, run_code, full_solution)
 with slides:
     st.markdown("### Download chapter presentation")
     st.write("A classroom-ready PowerPoint covering the concept, syntax, examples, common mistakes, practice and complete solution.")
