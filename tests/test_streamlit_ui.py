@@ -1,10 +1,11 @@
 """Exercise Streamlit widgets across all chapters without launching a browser."""
 import unittest
+from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 class StreamlitSmokeTests(unittest.TestCase):
     def test_home_and_every_chapter_renders(self):
-        app=AppTest.from_file("app.py",default_timeout=20).run()
+        app=AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"),default_timeout=20).run()
         self.assertFalse(app.exception, [str(x.message) for x in app.exception])
         self.assertEqual(len(app.sidebar.radio),1)
         labels=app.sidebar.radio[0].options
