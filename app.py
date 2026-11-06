@@ -36,6 +36,67 @@ lesson(11,"Functions — Build Reusable QA Logic","Package repeated logic into a
 lesson(12,"Final Mini Project — QA Result Evaluator","Combine the Python basics into one automation-style program.","This project is the bridge to API automation. You combine a function, list, loop and validation to evaluate several status codes. The aim is not advanced Python; it is proving you can connect the essential building blocks.","function → list → loop → validation → result",["Shows concepts working together","Looks like future API validation","Prepares for requests and pytest"],["Keep validation reusable","Loop through data","Separate expected/actual","Print readable results"],"You are combining small Python tools into a tiny test automation workflow.",[("Complete mini flow",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"One reusable function validates every code.")],["Hard-coding results","Forgetting to loop all values","Duplicating validation logic"],("Which concept makes validation reusable?",["Function","Comment","print only"],"Function"),"Run the example and inspect which code fails.",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"200 PASS\n404 FAIL\n200 PASS","Expected is 200; any other code fails.","Create validate_status. Evaluate [200,201,500] against 200. Print each code with PASS/FAIL and Total tests: 3.","# Final project\n",["200 PASS","201 FAIL","500 FAIL","Total tests: 3"],["Reusable function","Loops all codes","Correct results","Prints total count"])
 ]
 
+
+def full_solution(m):
+    """Copy/paste-ready reference answer; each assignment has its own solution."""
+    solutions = {
+        "01": 'print("My name is Alex")\nprint("I want to become an Automation QA Engineer")',
+        "02": 'test_name = "Login Test"\nstatus = "PASS"\nprint(test_name)\nprint(status)',
+        "03": 'qa_name = "Alex"\ntotal_tests = 10\npass_rate = 95.5\nautomation_ready = True\nprint(qa_name)\nprint(total_tests)\nprint(pass_rate)\nprint(automation_ready)',
+        "04": 'first = "API"\nsecond = "Automation"\ncombined = first + " " + second\nprint(combined)\nprint(combined.upper())',
+        "05": 'expected_time = 2\nactual_time = 3\nprint(actual_time > expected_time)\nprint(actual_time == expected_time)',
+        "06": 'tests = ["Login", "Search", "Checkout"]\nprint(tests[0])\nprint(tests[-1])\nprint(len(tests))',
+        "07": 'response = {"id": 2, "name": "Alex", "active": True}\nprint(response["id"])\nprint(response["name"])\nprint(response["active"])',
+        "08": 'expected = 201\nactual = 201\nif actual == expected:\n    print("PASS")\nelse:\n    print("FAIL")',
+        "09": 'tests = ["Login", "Search", "Checkout"]\nfor test in tests:\n    print(test)',
+        "10": 'retry = 1\nwhile retry <= 2:\n    print("Retry", retry)\n    retry += 1',
+        "11": 'def validate_status(actual, expected):\n    if actual == expected:\n        return "PASS"\n    return "FAIL"\n\nprint(validate_status(200, 200))\nprint(validate_status(404, 200))',
+        "12": 'def validate_status(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 201, 500]\nfor code in codes:\n    print(code, validate_status(code, 200))\nprint("Total tests:", len(codes))',
+    }
+    return solutions[m["id"]]
+
+
+def chapter_slides(m):
+    """Generate downloadable classroom PPTX slides for every module."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    deck = Presentation()
+    slides = [
+        (m["title"], ["Python QA Academy", "Learning goal: " + m["goal"]]),
+        ("What will you learn?", [m["overview"], "Remember: " + m["mental"]]),
+        ("Python syntax", [m["syntax"]]),
+        ("Key concepts", m["key_points"]),
+        ("QA applications", m["qa_use"]),
+    ]
+    for name, code, explanation in m["examples"]:
+        slides.append((name, [code, explanation]))
+    slides += [
+        ("Common mistakes", m["mistakes"]),
+        ("Guided practice", [m["practice"], "Hint: " + m["hint"]]),
+        ("Your assignment", [m["assignment"]] + m["rubric"]),
+        ("Reference solution", [full_solution(m)]),
+    ]
+    for heading, points in slides:
+        slide = deck.slides.add_slide(deck.slide_layouts[1])
+        slide.shapes.title.text = heading
+        frame = slide.placeholders[1].text_frame
+        frame.clear()
+        for i, point in enumerate(points):
+            para = frame.paragraphs[0] if i == 0 else frame.add_paragraph()
+            para.text = str(point)
+            para.font.size = Pt(18 if len(str(point)) < 150 else 13)
+    buf = io.BytesIO()
+    deck.save(buf)
+    return buf.getvalue()
+
+
+def extra_exercises(m):
+    return [
+        ("Easy: Explain", "In your own words, explain: " + m["mental"]),
+        ("Medium: Modify", "Change one value in this example, run it, and explain the output:\n" + m["examples"][0][1]),
+        ("Challenge: Debug", "Create an incorrect version of the example, identify the error, then correct it."),
+    ]
+
 ALLOWED={"print":print,"len":len,"str":str,"int":int,"float":float,"bool":bool,"list":list,"dict":dict,"range":range,"type":type,"sum":sum,"min":min,"max":max,"abs":abs}
 BLOCKED=(ast.Import,ast.ImportFrom,ast.ClassDef,ast.Lambda,ast.With,ast.AsyncWith,ast.AsyncFunctionDef,ast.Await,ast.Yield,ast.YieldFrom,ast.Global,ast.Nonlocal,ast.Delete)
 BAD={"eval","exec","open","compile","__import__","globals","locals","vars","input","help","dir","getattr","setattr","delattr","breakpoint"}
@@ -81,7 +142,7 @@ with st.sidebar:
     labels=[f"{m['id']}. {m['title'].split(' — ')[0]}" for m in MODULES];selected=st.radio("Choose module",labels,label_visibility="collapsed");idx=labels.index(selected);done=sum(bool(st.session_state.completed.get(m["id"])) for m in MODULES);st.progress(done/len(MODULES),text=f"Progress: {done}/{len(MODULES)} passed");st.caption("Focused on Python needed for QA automation — not unnecessary advanced depth.")
 m=MODULES[idx];c1,c2,c3,c4=st.columns(4);c1.metric("Module",f"{m['id']} / {len(MODULES):02d}");c2.metric("Modules Passed",sum(bool(x) for x in st.session_state.completed.values()));c3.metric("Best Score",f"{max([x.get('score',0) for x in st.session_state.assignment_results.values()] or [0])}%");c4.metric("Pass Mark",f"{PASS_SCORE}%")
 st.markdown(f'<div class="kicker">Module {m["id"]}</div><div class="title">{m["title"]}</div><div class="copy">Learning goal: {m["goal"]}</div>',unsafe_allow_html=True)
-learn,practice,assignment,progress=st.tabs(["📘 Learn","🧪 Practice","📝 Assignment","📊 Progress"])
+learn,slides,practice,assignment,progress=st.tabs(["📘 Learn","📽️ Slides","🧪 Practice","📝 Assignment","📊 Progress"])
 with learn:
     st.markdown("### 1. Understand the concept");st.markdown(f'<div class="lesson-card">{m["overview"]}</div>',unsafe_allow_html=True);st.markdown("### 2. Basic syntax");st.code(m["syntax"],language="python")
     a,b=st.columns(2)
@@ -104,12 +165,22 @@ with learn:
         elif choice is None:st.warning("Choose an answer first.")
         else:st.error("Not quite. Review the notes and examples, then try again.")
     st.info("Next: open **🧪 Practice** and change the code yourself.")
+with slides:
+    st.markdown("### Download chapter presentation")
+    st.write("A classroom-ready PowerPoint covering the concept, syntax, examples, common mistakes, practice and complete solution.")
+    st.download_button("⬇ Download chapter PPTX", chapter_slides(m), file_name=f"python_chapter_{m['id']}.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation", key=f"ppt_{m['id']}")
+    st.markdown("### Extra exercises")
+    for level, task in extra_exercises(m):
+        with st.expander(level):
+            st.write(task)
 with practice:
     st.markdown("### Practice it yourself");st.write(m["practice"]);st.caption("Edit the starter code, run it and compare your output. Practice does not affect your assignment score.")
     pk=f"p_{m['id']}"
     if pk not in st.session_state:st.session_state[pk]=m["start"]
     code=st.text_area("Your practice code",key=pk,height=220);p1,p2,p3=st.columns(3);run=p1.button("▶ Run Practice",type="primary",use_container_width=True,key=f"rp_{m['id']}");hint=p2.button("💡 Show Hint",use_container_width=True,key=f"h_{m['id']}");reset=p3.button("↺ Reset",use_container_width=True,key=f"r_{m['id']}")
     if hint:st.info(m["hint"])
+    with st.expander("📋 Full practice solution — copy and paste"):
+        st.code(m["start"],language="python")
     if reset:st.session_state[pk]=m["start"];st.rerun()
     if run:
         ok,out=run_code(code);st.markdown("#### Your output");st.markdown(f'<div class="console">{out}</div>',unsafe_allow_html=True)
@@ -122,12 +193,17 @@ with assignment:
     st.markdown("### Module Assignment");st.write(m["assignment"]);st.caption("Run your code first. When ready, ask the instructor agent to evaluate it.")
     with st.expander("📋 Assignment rubric"):
         for x in m["rubric"]:st.write("• "+x)
+    with st.expander("💡 Assignment hint"):
+        st.info(m["hint"])
+    with st.expander("✅ Complete assignment solution — copy and paste"):
+        st.code(full_solution(m),language="python")
     ak=f"a_{m['id']}"
     if ak not in st.session_state:st.session_state[ak]=m["a_start"]
     acode=st.text_area("Your assignment code",key=ak,height=260);a1,a2=st.columns(2);runa=a1.button("▶ Run Assignment",type="primary",use_container_width=True,key=f"ra_{m['id']}");eva=a2.button("🤖 Evaluate Assignment",use_container_width=True,key=f"e_{m['id']}");okey=f"out_{m['id']}";okflag=f"ok_{m['id']}"
     if runa:
         ok,out=run_code(acode);st.session_state[okey]=out;st.session_state[okflag]=ok
     if okey in st.session_state:st.markdown("#### Assignment output");st.markdown(f'<div class="console">{st.session_state[okey]}</div>',unsafe_allow_html=True)
+    st.download_button("⬇ Download assignment submission", json.dumps({"student":st.session_state.student_name,"student_id":st.session_state.student_id,"module":m["id"],"code":acode,"submitted_at":datetime.now().isoformat()},indent=2), file_name=f"submission_{m['id']}.json", mime="application/json", key=f"sub_{m['id']}")
     if eva:
         if not st.session_state.student_name.strip():st.error("Enter your name in the sidebar before evaluation.")
         else:
