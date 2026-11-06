@@ -39,7 +39,7 @@ def render_workshop(m,run_code,full_solution):
     pos=min(st.session_state[poskey],len(steps)-1)
     step=steps[pos]
     st.progress(len(st.session_state[donekey])/len(steps),text=f"Chapter {mid}: {len(st.session_state[donekey])}/{len(steps)} steps completed")
-    st.caption(f"Step {pos+1} of {len(steps)} · {m[\'title\']}")
+    st.caption(f"Step {pos+1} of {len(steps)} · {m['title']}")
     st.subheader(step["title"])
     left,right=st.columns([1,1],gap="large")
     with left:
