@@ -187,7 +187,8 @@ with st.sidebar:
     labels=[f"{m['id']}. {m['title'].split(' — ')[0]}" for m in MODULES];selected=st.radio("Choose module",labels,label_visibility="collapsed");idx=labels.index(selected);done=sum(bool(st.session_state.completed.get(m["id"])) for m in MODULES);st.progress(done/len(MODULES),text=f"Progress: {done}/{len(MODULES)} passed");st.caption("Focused on Python needed for QA automation — not unnecessary advanced depth.")
 m=MODULES[idx];c1,c2,c3,c4=st.columns(4);c1.metric("Module",f"{m['id']} / {len(MODULES):02d}");c2.metric("Modules Passed",sum(bool(x) for x in st.session_state.completed.values()));c3.metric("Best Score",f"{max([x.get('score',0) for x in st.session_state.assignment_results.values()] or [0])}%");c4.metric("Pass Mark",f"{PASS_SCORE}%")
 st.markdown(f'<div class="kicker">Module {m["id"]}</div><div class="title">{m["title"]}</div><div class="copy">Learning goal: {m["goal"]}</div>',unsafe_allow_html=True)
-workshop,learn,guided,slides,practice,assignment,progress=st.tabs(["🧑‍💻 Interactive Workshop","📘 Learn","🚀 Guided Lessons","📽️ Slides","🧪 Practice","📝 Assignment","📊 Progress"])
+workshop,assignment,resources=st.tabs(["🧑‍💻 Learn & Code","📝 Final Assignment","📚 Resources & Progress"])
+learn=guided=slides=practice=progress=resources
 with workshop:
     render_workshop(m,run_code,full_solution)
 with learn:
@@ -211,7 +212,7 @@ with learn:
         if choice==ans:st.success("✅ Correct. You understand the key idea.");st.session_state.quiz_results[m["id"]]=True
         elif choice is None:st.warning("Choose an answer first.")
         else:st.error("Not quite. Review the notes and examples, then try again.")
-    st.info("Next: open **🧪 Practice** and change the code yourself.")
+    st.info("Next: return to **Learn & Code** and try the exercises.")
 with guided:
     render_guided(m, run_code, full_solution)
 with slides:
@@ -277,4 +278,4 @@ with progress:
     for x in MODULES:
         r=st.session_state.assignment_results.get(x["id"],{});rows.append({"Module":f"{x['id']} — {x['title']}","Quiz":"✓" if st.session_state.quiz_results.get(x["id"]) else "—","Score":r.get("score","—"),"Status":"PASS" if st.session_state.completed.get(x["id"]) else ("Attempted" if r else "Not started")})
     st.dataframe(rows,use_container_width=True,hide_index=True);report={"student_name":st.session_state.student_name,"student_id":st.session_state.student_id,"modules_passed":sum(bool(v) for v in st.session_state.completed.values()),"total_modules":len(MODULES),"assignment_results":st.session_state.assignment_results};st.download_button("↓ Download Progress Report",json.dumps(report,indent=2).encode(),f"{st.session_state.student_name or 'student'}_python_qa_progress.json","application/json",use_container_width=True)
-st.caption("Python QA Academy teaches the Python foundation needed for QA automation without unnecessary advanced depth. Practice code runs in a restricted beginner sandbox.")
+st.caption("Python QA Academy: learn by doing. Code execution is restricted but not a hardened security sandbox.")

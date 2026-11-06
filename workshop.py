@@ -1,6 +1,7 @@
 """Structured, beginner-friendly Python QA workshop with 10 interactive steps per chapter."""
 from collections import Counter
 import streamlit as st
+from expanded_lessons import expanded_steps
 
 def workshop_steps(m):
     examples=m["examples"]
@@ -14,7 +15,8 @@ def workshop_steps(m):
         {"title":"Modify and experiment","type":"code","explanation":"Run the example. Then change one input value and run it again. Explain the difference in the console output.","starter":examples[-1][1],"solution":examples[-1][1],"expected":None,"hint":"First run the supplied example; then edit a value."},
         {"title":"Debug a common mistake","type":"read","explanation":"Common mistakes: "+". ".join(m["mistakes"])+". Find one mistake in your own code and explain the correction.","code":examples[0][1],"hint":"Compare capitalization, quotes, brackets and indentation."},
         {"title":"Independent QA challenge","type":"code","explanation":m["assignment"],"starter":m["a_start"],"solution":None,"expected":m["a_expected"],"hint":m["hint"]},
-        {"title":"Reflect and finish","type":"read","explanation":"You have practiced "+m["title"]+". Review the rubric: "+". ".join(m["rubric"])+". Open the Assignment tab for a graded submission.","code":examples[-1][1],"hint":"Repeat the independent challenge without opening the solution."}
+        *expanded_steps(m),
+        {"title":"Reflect and finish","type":"read","explanation":"You have practiced "+m["title"]+". Review the rubric: "+". ".join(m["rubric"])+". Complete the Final Assignment for a graded submission.","code":examples[-1][1],"hint":"Repeat the independent challenge without opening the solution."}
     ]
     return steps
 

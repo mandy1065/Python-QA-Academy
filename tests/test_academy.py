@@ -29,7 +29,7 @@ class AcademyTests(unittest.TestCase):
                 self.assertTrue(m["assignment"])
                 self.assertGreaterEqual(len(m["rubric"]),3)
                 self.assertEqual(len(steps_for(m)),6)
-                self.assertEqual(len(workshop_steps(m)),10)
+                self.assertGreaterEqual(len(workshop_steps(m)),12)
 
     def test_all_solutions_run_and_grade_pass(self):
         for m in scope["MODULES"]:
@@ -44,7 +44,7 @@ class AcademyTests(unittest.TestCase):
         for m in scope["MODULES"]:
             with self.subTest(module=m["id"]):
                 steps=workshop_steps(m)
-                self.assertEqual(len(steps),10)
+                self.assertGreaterEqual(len(steps),12)
                 for step in steps:
                     if step["type"]=="code" and step["solution"] is not None:
                         ok,out=scope["run_code"](step["solution"])
