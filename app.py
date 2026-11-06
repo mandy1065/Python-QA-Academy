@@ -2,13 +2,25 @@ import ast
 import contextlib
 import io
 import json
+import sys
+import html
+import os
 from datetime import datetime
 
 import streamlit as st
+from guided_learning import render_guided
 from openai import OpenAI
 
 st.set_page_config(page_title="Python QA Academy", page_icon="🐍", layout="wide")
-MODEL = st.secrets.get("OPENAI_MODEL", "gpt-5.4-nano")
+def optional_secret(name, default=None):
+    try:
+        return st.secrets.get(name, os.environ.get(name, default))
+    except (FileNotFoundError, Exception) as exc:
+        if type(exc).__name__ == "StreamlitSecretNotFoundError":
+            return os.environ.get(name, default)
+        raise
+
+MODEL = optional_secret("OPENAI_MODEL", "gpt-5.4-nano")
 PASS_SCORE = 70
 
 st.markdown("""
@@ -33,7 +45,7 @@ lesson(8,"if / else — Decide PASS or FAIL","Choose what code runs based on a c
 lesson(9,"for Loops — Run Through Test Data","Repeat the same logic for every item in a collection.","A for loop takes items from a collection one at a time and runs the same block for each item. This lets a small amount of automation code test many users, endpoints, status codes or browsers.","for item in collection:\n    do_something(item)",["Run one validation across many inputs","Test several browsers/users","Process multiple results"],["Loop selects one item at a time","Body is indented","Lists work naturally with loops","range() creates number sequences"],"for test in tests means: give me each test one after another.",[("Loop tests",'tests = ["Login", "Search", "Checkout"]\nfor test in tests:\n    print(test)',"Runs once per test."),("Status codes","codes = [200, 404, 500]\nfor code in codes:\n    print(code)","code changes each iteration."),("Loop + condition",'codes = [200, 404]\nfor code in codes:\n    if code == 200:\n        print("PASS")\n    else:\n        print("FAIL")',"Loops and conditions combine in automation.")],["Forgetting indentation","Printing the whole list instead of item","Unnecessary list changes inside loop"],("How many iterations for [200,201,204]?",["1","2","3"],"3"),"Loop through [200,201,204] and print each.","codes = [200, 201, 204]\nfor code in codes:\n    print(code)","200\n201\n204","Use for item in list: then indent.","Create results=[PASS,PASS,FAIL]. Loop and print each.","# Loop results\n",["PASS","PASS","FAIL"],["Correct list","Uses for loop","Prints each item","Indentation"]),
 lesson(10,"while Loops — Repeat Until a Condition Changes","Repeat code while a condition stays True.","A while loop keeps running while its condition is True. In automation this can model retries or waiting. Beginners must update the condition, otherwise the loop may never stop.","while condition:\n    do_something()\n    update_condition",["Model retry attempts","Repeat until state changes","Understand polling/waiting concepts"],["Condition checked before each run","Update the counter/state","Avoid infinite loops","Prefer for when item count is known"],"while retry <= 3 means keep trying until retry becomes 4.",[("Count attempts","attempt = 1\nwhile attempt <= 3:\n    print(attempt)\n    attempt += 1","Counter changes so loop stops."),("Retry message",'retry = 1\nwhile retry <= 2:\n    print("Retry", retry)\n    retry += 1',"Looks like simple retry behaviour.")],["Forgetting to update counter","Creating an infinite loop","Using while where for is clearer"],("What prevents an infinite loop?",["Increase the counter","print()","Variable name"],"Increase the counter"),"Use while to print 1,2,3.","count = 1\nwhile count <= 3:\n    print(count)\n    count += 1","1\n2\n3","Increase count inside the loop.","Create retry=1. While retry<=2 print Retry + number and increase retry.","# Retry loop\n",["Retry 1","Retry 2"],["Correct counter","Correct condition","Updates counter","Stops correctly"]),
 lesson(11,"Functions — Build Reusable QA Logic","Package repeated logic into a reusable block.","A function is a named block of code you can call whenever needed. This is where beginner Python starts to look like real automation: instead of copying validation logic everywhere, write it once and reuse it.","def function_name(parameter):\n    # logic\n    return result",["Reuse validation logic","Keep tests readable","Prepare for API clients/helpers"],["def starts a function","Parameters are inputs","return sends a value back","A function runs only when called"],"A function is a small machine: input goes in, logic runs, result comes out.",[("Simple function",'def show_result():\n    print("PASS")\n\nshow_result()',"Defining and calling are separate steps."),("Function with inputs",'def validate_status(actual, expected):\n    if actual == expected:\n        return "PASS"\n    return "FAIL"\n\nprint(validate_status(200, 200))',"Parameters make logic reusable."),("Reuse function",'def validate(actual, expected):\n    return actual == expected\n\nprint(validate(200, 200))\nprint(validate(404, 200))',"Same logic, different inputs.")],["Forgetting to call the function","Confusing print and return","Bad indentation"],("Which keyword sends a value back?",["print","return","def"],"return"),"Create add(a,b), return a+b, print add(2,3).","def add(a, b):\n    return a + b\n\nprint(add(2, 3))","5","Use def and return.","Create validate_status(actual,expected). Return PASS if equal else FAIL. Test (200,200) and (404,200).","# Build function\n",["PASS","FAIL"],["Two parameters","Correct comparison","Returns PASS/FAIL","Tests both cases"]),
-lesson(12,"Final Mini Project — QA Result Evaluator","Combine the Python basics into one automation-style program.","This project is the bridge to API automation. You combine a function, list, loop and validation to evaluate several status codes. The aim is not advanced Python; it is proving you can connect the essential building blocks.","function → list → loop → validation → result",["Shows concepts working together","Looks like future API validation","Prepares for requests and pytest"],["Keep validation reusable","Loop through data","Separate expected/actual","Print readable results"],"You are combining small Python tools into a tiny test automation workflow.",[("Complete mini flow",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"One reusable function validates every code.")],["Hard-coding results","Forgetting to loop all values","Duplicating validation logic"],("Which concept makes validation reusable?",["Function","Comment","print only"],"Function"),"Run the example and inspect which code fails.",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"200 PASS\n404 FAIL\n200 PASS","Expected is 200; any other code fails.","Create validate_status. Evaluate [200,201,500] against 200. Print each code with PASS/FAIL and Total tests: 3.","# Final project\n",["200 PASS","201 FAIL","500 FAIL","Total tests: 3"],["Reusable function","Loops all codes","Correct results","Prints total count"])
+lesson(12,"Final Mini Project — QA Result Evaluator","Combine the Python basics into one automation-style program.","This project is the bridge to API automation. You combine a function, list, loop and validation to evaluate several status codes. The aim is not advanced Python; it is proving you can connect the essential building blocks.","function → list → loop → validation → result",["Shows concepts working together","Looks like future API validation","Prepares for requests and pytest"],["Keep validation reusable","Loop through data","Separate expected/actual","Print readable results"],"You are combining small Python tools into a tiny test automation workflow.",[("Complete mini flow",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"One reusable function validates every code."),("Count passing checks",'codes = [200, 404, 200]\npassed = 0\nfor code in codes:\n    if code == 200:\n        passed += 1\nprint("Passed:", passed)',"A counter summarizes successful validations across multiple results.")],["Hard-coding results","Forgetting to loop all values","Duplicating validation logic"],("Which concept makes validation reusable?",["Function","Comment","print only"],"Function"),"Run the example and inspect which code fails.",'def validate(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 404, 200]\nfor code in codes:\n    print(code, validate(code, 200))',"200 PASS\n404 FAIL\n200 PASS","Expected is 200; any other code fails.","Create validate_status. Evaluate [200,201,500] against 200. Print each code with PASS/FAIL and Total tests: 3.","# Final project\n",["200 PASS","201 FAIL","500 FAIL","Total tests: 3"],["Reusable function","Loops all codes","Correct results","Prints total count"])
 ]
 
 
@@ -48,7 +60,7 @@ def full_solution(m):
         "06": 'tests = ["Login", "Search", "Checkout"]\nprint(tests[0])\nprint(tests[-1])\nprint(len(tests))',
         "07": 'response = {"id": 2, "name": "Alex", "active": True}\nprint(response["id"])\nprint(response["name"])\nprint(response["active"])',
         "08": 'expected = 201\nactual = 201\nif actual == expected:\n    print("PASS")\nelse:\n    print("FAIL")',
-        "09": 'tests = ["Login", "Search", "Checkout"]\nfor test in tests:\n    print(test)',
+        "09": 'results = ["PASS", "PASS", "FAIL"]\nfor result in results:\n    print(result)',
         "10": 'retry = 1\nwhile retry <= 2:\n    print("Retry", retry)\n    retry += 1',
         "11": 'def validate_status(actual, expected):\n    if actual == expected:\n        return "PASS"\n    return "FAIL"\n\nprint(validate_status(200, 200))\nprint(validate_status(404, 200))',
         "12": 'def validate_status(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 201, 500]\nfor code in codes:\n    print(code, validate_status(code, 200))\nprint("Total tests:", len(codes))',
@@ -92,9 +104,11 @@ def chapter_slides(m):
 
 def extra_exercises(m):
     return [
-        ("Easy: Explain", "In your own words, explain: " + m["mental"]),
-        ("Medium: Modify", "Change one value in this example, run it, and explain the output:\n" + m["examples"][0][1]),
-        ("Challenge: Debug", "Create an incorrect version of the example, identify the error, then correct it."),
+        ("Easy: Predict the output", "Before running, predict what this prints, then verify:\n" + m["examples"][0][1]),
+        ("Medium: Change the code", "Change a value in this example, predict the new output and run it:\n" + m["examples"][-1][1]),
+        ("Challenge: Debug", "Remove a required quote, bracket, or indentation from the example. Run it, read the error, fix it, and explain why the fix works."),
+        ("QA application", "Explain how the chapter concept helps a QA tester: " + "; ".join(m["qa_use"])),
+        ("Mini assignment", m["assignment"]),
     ]
 
 ALLOWED={"print":print,"len":len,"str":str,"int":int,"float":float,"bool":bool,"list":list,"dict":dict,"range":range,"type":type,"sum":sum,"min":min,"max":max,"abs":abs}
@@ -105,28 +119,58 @@ def validate_code(code):
     if len(code)>5000:return False,"Code is too long for this beginner practice area."
     try:tree=ast.parse(code)
     except SyntaxError as e:return False,f"Syntax error on line {e.lineno}: {e.msg}"
+    if sum(isinstance(n, ast.AST) for n in ast.walk(tree)) > 1000:return False,"Code is too complex for this beginner practice area."
     for n in ast.walk(tree):
         if isinstance(n,BLOCKED):return False,f"{type(n).__name__} is not needed in this beginner course."
         if isinstance(n,ast.Name) and (n.id.startswith("__") or n.id in BAD):return False,f"'{n.id}' is not allowed in the practice runner."
-        if isinstance(n,ast.Attribute) and n.attr.startswith("__"):return False,"Special Python attributes are not allowed."
+        if isinstance(n,ast.Attribute) and n.attr.startswith("__") and n.attr!="__name__":return False,"Special Python attributes are not allowed."
     return True,""
 
 def run_code(code):
     ok,msg=validate_code(code)
     if not ok:return False,msg
     out=io.StringIO();env={"__builtins__":ALLOWED}
+    steps = [0]
+    def guard(frame, event, arg):
+        if event == "line" and frame.f_code.co_filename == "<student_code>":
+            steps[0] += 1
+            if steps[0] > 10000:
+                raise RuntimeError("Too many steps. Check for an infinite loop.")
+        return guard
+    previous_trace = sys.gettrace()
     try:
-        with contextlib.redirect_stdout(out):exec(compile(code,"<student_code>","exec"),env,env)
-        text=out.getvalue().rstrip()
-        return True,(text[:4000]+"\n... output shortened ..." if len(text)>4000 else text) or "(No output — your code ran successfully.)"
-    except Exception as e:return False,f"{type(e).__name__}: {e}"
+        sys.settrace(guard)
+        with contextlib.redirect_stdout(out):
+            exec(compile(code,"<student_code>","exec"),env,env)
+        output=out.getvalue().rstrip()
+        return True,(output[:4000]+"\n... output shortened ..." if len(output)>4000 else output) or "(No output — your code ran successfully.)"
+    except Exception as e:
+        return False,f"{type(e).__name__}: {e}"
+    finally:
+        sys.settrace(previous_trace)
 
 def norm(x):return "\n".join(line.rstrip() for line in str(x).strip().splitlines())
 def local_grade(m,code,out):
-    expected=[str(x).lower() for x in m["a_expected"]];low=str(out).lower();hits=sum(x in low for x in expected);score=min(100,round(hits/max(len(expected),1)*65)+25)
-    return {"score":score,"result":"PASS" if score>=PASS_SCORE else "KEEP PRACTICING","strengths":["Your code runs successfully."]+(["Required output is present."] if hits==len(expected) else []),"improvements":([] if hits==len(expected) else ["Some required output is missing or different."]),"feedback":"Review the rubric and compare your output with the assignment requirements."}
+    """Fail closed: all required output lines must appear, with duplicates counted."""
+    from collections import Counter
+    required=Counter(str(x).strip().casefold() for x in m["a_expected"])
+    observed=Counter(str(x).strip().casefold() for x in str(out).splitlines())
+    missing=[]
+    for value,count in required.items():
+        if observed[value]<count:
+            missing.extend([value]*(count-observed[value]))
+    if missing:
+        return {"score":40,"result":"KEEP PRACTICING",
+                "strengths":["Your Python code ran without a runtime error."],
+                "improvements":["Missing or incorrect output: "+", ".join(missing)],
+                "feedback":"Compare each printed line with the assignment requirements. Then run and evaluate again."}
+    return {"score":100,"result":"PASS",
+            "strengths":["All required output lines were produced."],
+            "improvements":[],
+            "feedback":"Well done! Check your code against the rubric and try changing the input values."}
+
 def ai_grade(m,code,out):
-    key=st.secrets.get("OPENAI_API_KEY")
+    key=optional_secret("OPENAI_API_KEY")
     if not key:return local_grade(m,code,out)
     prompt=f'''You are a patient Python instructor grading a beginner QA automation student. Grade only this assignment.\nMODULE: {m['title']}\nGOAL: {m['goal']}\nASSIGNMENT: {m['assignment']}\nRUBRIC: {json.dumps(m['rubric'])}\nEXPECTED: {json.dumps(m['a_expected'])}\nCODE:\n{code}\nOUTPUT:\n{out}\nReturn only JSON: {{"score":0,"strengths":[""],"improvements":[""],"feedback":""}}. Be specific and beginner-friendly.'''
     try:
@@ -142,7 +186,7 @@ with st.sidebar:
     labels=[f"{m['id']}. {m['title'].split(' — ')[0]}" for m in MODULES];selected=st.radio("Choose module",labels,label_visibility="collapsed");idx=labels.index(selected);done=sum(bool(st.session_state.completed.get(m["id"])) for m in MODULES);st.progress(done/len(MODULES),text=f"Progress: {done}/{len(MODULES)} passed");st.caption("Focused on Python needed for QA automation — not unnecessary advanced depth.")
 m=MODULES[idx];c1,c2,c3,c4=st.columns(4);c1.metric("Module",f"{m['id']} / {len(MODULES):02d}");c2.metric("Modules Passed",sum(bool(x) for x in st.session_state.completed.values()));c3.metric("Best Score",f"{max([x.get('score',0) for x in st.session_state.assignment_results.values()] or [0])}%");c4.metric("Pass Mark",f"{PASS_SCORE}%")
 st.markdown(f'<div class="kicker">Module {m["id"]}</div><div class="title">{m["title"]}</div><div class="copy">Learning goal: {m["goal"]}</div>',unsafe_allow_html=True)
-learn,slides,practice,assignment,progress=st.tabs(["📘 Learn","📽️ Slides","🧪 Practice","📝 Assignment","📊 Progress"])
+learn,guided,slides,practice,assignment,progress=st.tabs(["📘 Learn","🚀 Guided Lessons","📽️ Slides","🧪 Practice","📝 Assignment","📊 Progress"])
 with learn:
     st.markdown("### 1. Understand the concept");st.markdown(f'<div class="lesson-card">{m["overview"]}</div>',unsafe_allow_html=True);st.markdown("### 2. Basic syntax");st.code(m["syntax"],language="python")
     a,b=st.columns(2)
@@ -156,7 +200,7 @@ with learn:
     for i,(name,code,explain) in enumerate(m["examples"],1):
         with st.container(border=True):
             st.markdown(f"#### Example {i} — {name}");st.write(explain);st.code(code,language="python");ok,out=run_code(code)
-            if ok:st.caption("Output");st.markdown(f'<div class="console">{out}</div>',unsafe_allow_html=True)
+            if ok:st.caption("Output");st.markdown(f'<div class="console">{html.escape(out)}</div>',unsafe_allow_html=True)
     st.markdown("### 4. Common beginner mistakes");st.markdown('<div class="warning"><b>Watch for these:</b></div>',unsafe_allow_html=True)
     for x in m["mistakes"]:st.write("⚠️ "+x)
     st.markdown("### 5. Quick knowledge check");q,opts,ans=m["quiz"];choice=st.radio(q,opts,index=None,key=f"q_{m['id']}")
@@ -165,6 +209,8 @@ with learn:
         elif choice is None:st.warning("Choose an answer first.")
         else:st.error("Not quite. Review the notes and examples, then try again.")
     st.info("Next: open **🧪 Practice** and change the code yourself.")
+with guided:
+    render_guided(m, run_code, full_solution)
 with slides:
     st.markdown("### Download chapter presentation")
     st.write("A classroom-ready PowerPoint covering the concept, syntax, examples, common mistakes, practice and complete solution.")
@@ -202,12 +248,12 @@ with assignment:
     acode=st.text_area("Your assignment code",key=ak,height=260);a1,a2=st.columns(2);runa=a1.button("▶ Run Assignment",type="primary",use_container_width=True,key=f"ra_{m['id']}");eva=a2.button("🤖 Evaluate Assignment",use_container_width=True,key=f"e_{m['id']}");okey=f"out_{m['id']}";okflag=f"ok_{m['id']}"
     if runa:
         ok,out=run_code(acode);st.session_state[okey]=out;st.session_state[okflag]=ok
-    if okey in st.session_state:st.markdown("#### Assignment output");st.markdown(f'<div class="console">{st.session_state[okey]}</div>',unsafe_allow_html=True)
+    if okey in st.session_state:st.markdown("#### Assignment output");st.markdown(f'<div class="console">{html.escape(st.session_state[okey])}</div>',unsafe_allow_html=True)
     st.download_button("⬇ Download assignment submission", json.dumps({"student":st.session_state.student_name,"student_id":st.session_state.student_id,"module":m["id"],"code":acode,"submitted_at":datetime.now().isoformat()},indent=2), file_name=f"submission_{m['id']}.json", mime="application/json", key=f"sub_{m['id']}")
     if eva:
         if not st.session_state.student_name.strip():st.error("Enter your name in the sidebar before evaluation.")
         else:
-            ok,out=run_code(acode);evaluation=ai_grade(m,acode,out) if ok else {"score":20,"result":"KEEP PRACTICING","strengths":["You attempted the assignment."],"improvements":["Fix the code so it runs."],"feedback":out};st.session_state.assignment_results[m["id"]]={**evaluation,"module":m["title"],"code":acode,"output":out,"evaluated_at":datetime.now().isoformat(timespec="seconds")};st.session_state[okey]=out;st.session_state[okflag]=ok
+            ok,out=run_code(acode);evaluation=local_grade(m,acode,out) if ok else {"score":20,"result":"KEEP PRACTICING","strengths":["You attempted the assignment."],"improvements":["Fix the code so it runs."],"feedback":out};st.session_state.assignment_results[m["id"]]={**evaluation,"module":m["title"],"code":acode,"output":out,"evaluated_at":datetime.now().isoformat(timespec="seconds")};st.session_state[okey]=out;st.session_state[okflag]=ok
             if evaluation["score"]>=PASS_SCORE:st.session_state.completed[m["id"]]=True
             st.rerun()
     saved=st.session_state.assignment_results.get(m["id"])
