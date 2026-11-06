@@ -60,7 +60,7 @@ def render_guided(m, run_code, full_solution):
                 if expected is None:
                     correct=True
                 elif isinstance(expected,list):
-                    correct=all(str(value).lower() in out.lower() for value in expected)
+                    correct=all(str(value).lower() in out.lower() for value in set(expected))
                 else:
                     correct=out.strip()==str(expected).strip()
                 if correct:
@@ -69,7 +69,7 @@ def render_guided(m, run_code, full_solution):
                 else:
                     st.error("Your code ran, but the result does not match the exercise.")
                     st.caption("Check the expected result and try again.")
-                    st.code("\\n".join(expected) if isinstance(expected,list) else str(expected),language="text")
+                    st.code("\n".join(expected) if isinstance(expected,list) else str(expected),language="text")
     if passed:
         st.success("Step completed ✓")
     back,next_col=st.columns(2)
