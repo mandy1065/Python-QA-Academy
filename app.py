@@ -50,7 +50,7 @@ def full_solution(m):
         "06": 'tests = ["Login", "Search", "Checkout"]\nprint(tests[0])\nprint(tests[-1])\nprint(len(tests))',
         "07": 'response = {"id": 2, "name": "Alex", "active": True}\nprint(response["id"])\nprint(response["name"])\nprint(response["active"])',
         "08": 'expected = 201\nactual = 201\nif actual == expected:\n    print("PASS")\nelse:\n    print("FAIL")',
-        "09": 'tests = ["Login", "Search", "Checkout"]\nfor test in tests:\n    print(test)',
+        "09": 'results = ["PASS", "PASS", "FAIL"]\nfor result in results:\n    print(result)',
         "10": 'retry = 1\nwhile retry <= 2:\n    print("Retry", retry)\n    retry += 1',
         "11": 'def validate_status(actual, expected):\n    if actual == expected:\n        return "PASS"\n    return "FAIL"\n\nprint(validate_status(200, 200))\nprint(validate_status(404, 200))',
         "12": 'def validate_status(actual, expected):\n    return "PASS" if actual == expected else "FAIL"\n\ncodes = [200, 201, 500]\nfor code in codes:\n    print(code, validate_status(code, 200))\nprint("Total tests:", len(codes))',
