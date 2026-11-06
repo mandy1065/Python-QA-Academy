@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 import sys
+import html
 from datetime import datetime
 
 import streamlit as st
@@ -109,6 +110,7 @@ def validate_code(code):
     if len(code)>5000:return False,"Code is too long for this beginner practice area."
     try:tree=ast.parse(code)
     except SyntaxError as e:return False,f"Syntax error on line {e.lineno}: {e.msg}"
+    if sum(isinstance(n, ast.AST) for n in ast.walk(tree)) > 1000:return False,"Code is too complex for this beginner practice area."
     for n in ast.walk(tree):
         if isinstance(n,BLOCKED):return False,f"{type(n).__name__} is not needed in this beginner course."
         if isinstance(n,ast.Name) and (n.id.startswith("__") or n.id in BAD):return False,f"'{n.id}' is not allowed in the practice runner."
@@ -189,7 +191,7 @@ with learn:
     for i,(name,code,explain) in enumerate(m["examples"],1):
         with st.container(border=True):
             st.markdown(f"#### Example {i} — {name}");st.write(explain);st.code(code,language="python");ok,out=run_code(code)
-            if ok:st.caption("Output");st.markdown(f'<div class="console">{out}</div>',unsafe_allow_html=True)
+            if ok:st.caption("Output");st.markdown(f'<div class="console">{html.escape(out)}</div>',unsafe_allow_html=True)
     st.markdown("### 4. Common beginner mistakes");st.markdown('<div class="warning"><b>Watch for these:</b></div>',unsafe_allow_html=True)
     for x in m["mistakes"]:st.write("⚠️ "+x)
     st.markdown("### 5. Quick knowledge check");q,opts,ans=m["quiz"];choice=st.radio(q,opts,index=None,key=f"q_{m['id']}")
@@ -237,7 +239,7 @@ with assignment:
     acode=st.text_area("Your assignment code",key=ak,height=260);a1,a2=st.columns(2);runa=a1.button("▶ Run Assignment",type="primary",use_container_width=True,key=f"ra_{m['id']}");eva=a2.button("🤖 Evaluate Assignment",use_container_width=True,key=f"e_{m['id']}");okey=f"out_{m['id']}";okflag=f"ok_{m['id']}"
     if runa:
         ok,out=run_code(acode);st.session_state[okey]=out;st.session_state[okflag]=ok
-    if okey in st.session_state:st.markdown("#### Assignment output");st.markdown(f'<div class="console">{st.session_state[okey]}</div>',unsafe_allow_html=True)
+    if okey in st.session_state:st.markdown("#### Assignment output");st.markdown(f'<div class="console">{html.escape(st.session_state[okey])}</div>',unsafe_allow_html=True)
     st.download_button("⬇ Download assignment submission", json.dumps({"student":st.session_state.student_name,"student_id":st.session_state.student_id,"module":m["id"],"code":acode,"submitted_at":datetime.now().isoformat()},indent=2), file_name=f"submission_{m['id']}.json", mime="application/json", key=f"sub_{m['id']}")
     if eva:
         if not st.session_state.student_name.strip():st.error("Enter your name in the sidebar before evaluation.")
