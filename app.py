@@ -2,6 +2,7 @@ import ast
 import contextlib
 import io
 import json
+import sys
 from datetime import datetime
 
 import streamlit as st
@@ -93,9 +94,11 @@ def chapter_slides(m):
 
 def extra_exercises(m):
     return [
-        ("Easy: Explain", "In your own words, explain: " + m["mental"]),
-        ("Medium: Modify", "Change one value in this example, run it, and explain the output:\n" + m["examples"][0][1]),
-        ("Challenge: Debug", "Create an incorrect version of the example, identify the error, then correct it."),
+        ("Easy: Predict the output", "Before running, predict what this prints, then verify:\n" + m["examples"][0][1]),
+        ("Medium: Change the code", "Change a value in this example, predict the new output and run it:\n" + m["examples"][-1][1]),
+        ("Challenge: Debug", "Remove a required quote, bracket, or indentation from the example. Run it, read the error, fix it, and explain why the fix works."),
+        ("QA application", "Explain how the chapter concept helps a QA tester: " + "; ".join(m["qa_use"])),
+        ("Mini assignment", m["assignment"]),
     ]
 
 ALLOWED={"print":print,"len":len,"str":str,"int":int,"float":float,"bool":bool,"list":list,"dict":dict,"range":range,"type":type,"sum":sum,"min":min,"max":max,"abs":abs}
@@ -109,23 +112,52 @@ def validate_code(code):
     for n in ast.walk(tree):
         if isinstance(n,BLOCKED):return False,f"{type(n).__name__} is not needed in this beginner course."
         if isinstance(n,ast.Name) and (n.id.startswith("__") or n.id in BAD):return False,f"'{n.id}' is not allowed in the practice runner."
-        if isinstance(n,ast.Attribute) and n.attr.startswith("__"):return False,"Special Python attributes are not allowed."
+        if isinstance(n,ast.Attribute) and n.attr.startswith("__") and n.attr!="__name__":return False,"Special Python attributes are not allowed."
     return True,""
 
 def run_code(code):
     ok,msg=validate_code(code)
     if not ok:return False,msg
     out=io.StringIO();env={"__builtins__":ALLOWED}
+    steps = [0]
+    def guard(frame, event, arg):
+        if event == "line" and frame.f_code.co_filename == "<student_code>":
+            steps[0] += 1
+            if steps[0] > 10000:
+                raise RuntimeError("Too many steps. Check for an infinite loop.")
+        return guard
+    previous_trace = sys.gettrace()
     try:
-        with contextlib.redirect_stdout(out):exec(compile(code,"<student_code>","exec"),env,env)
-        text=out.getvalue().rstrip()
-        return True,(text[:4000]+"\n... output shortened ..." if len(text)>4000 else text) or "(No output — your code ran successfully.)"
-    except Exception as e:return False,f"{type(e).__name__}: {e}"
+        sys.settrace(guard)
+        with contextlib.redirect_stdout(out):
+            exec(compile(code,"<student_code>","exec"),env,env)
+        output=out.getvalue().rstrip()
+        return True,(output[:4000]+"\n... output shortened ..." if len(output)>4000 else output) or "(No output — your code ran successfully.)"
+    except Exception as e:
+        return False,f"{type(e).__name__}: {e}"
+    finally:
+        sys.settrace(previous_trace)
 
 def norm(x):return "\n".join(line.rstrip() for line in str(x).strip().splitlines())
 def local_grade(m,code,out):
-    expected=[str(x).lower() for x in m["a_expected"]];low=str(out).lower();hits=sum(x in low for x in expected);score=min(100,round(hits/max(len(expected),1)*65)+25)
-    return {"score":score,"result":"PASS" if score>=PASS_SCORE else "KEEP PRACTICING","strengths":["Your code runs successfully."]+(["Required output is present."] if hits==len(expected) else []),"improvements":([] if hits==len(expected) else ["Some required output is missing or different."]),"feedback":"Review the rubric and compare your output with the assignment requirements."}
+    """Fail closed: all required output lines must appear, with duplicates counted."""
+    from collections import Counter
+    required=Counter(str(x).strip().casefold() for x in m["a_expected"])
+    observed=Counter(str(x).strip().casefold() for x in str(out).splitlines())
+    missing=[]
+    for value,count in required.items():
+        if observed[value]<count:
+            missing.extend([value]*(count-observed[value]))
+    if missing:
+        return {"score":40,"result":"KEEP PRACTICING",
+                "strengths":["Your Python code ran without a runtime error."],
+                "improvements":["Missing or incorrect output: "+", ".join(missing)],
+                "feedback":"Compare each printed line with the assignment requirements. Then run and evaluate again."}
+    return {"score":100,"result":"PASS",
+            "strengths":["All required output lines were produced."],
+            "improvements":[],
+            "feedback":"Well done! Check your code against the rubric and try changing the input values."}
+
 def ai_grade(m,code,out):
     key=st.secrets.get("OPENAI_API_KEY")
     if not key:return local_grade(m,code,out)
@@ -210,7 +242,7 @@ with assignment:
     if eva:
         if not st.session_state.student_name.strip():st.error("Enter your name in the sidebar before evaluation.")
         else:
-            ok,out=run_code(acode);evaluation=ai_grade(m,acode,out) if ok else {"score":20,"result":"KEEP PRACTICING","strengths":["You attempted the assignment."],"improvements":["Fix the code so it runs."],"feedback":out};st.session_state.assignment_results[m["id"]]={**evaluation,"module":m["title"],"code":acode,"output":out,"evaluated_at":datetime.now().isoformat(timespec="seconds")};st.session_state[okey]=out;st.session_state[okflag]=ok
+            ok,out=run_code(acode);evaluation=local_grade(m,acode,out) if ok else {"score":20,"result":"KEEP PRACTICING","strengths":["You attempted the assignment."],"improvements":["Fix the code so it runs."],"feedback":out};st.session_state.assignment_results[m["id"]]={**evaluation,"module":m["title"],"code":acode,"output":out,"evaluated_at":datetime.now().isoformat(timespec="seconds")};st.session_state[okey]=out;st.session_state[okflag]=ok
             if evaluation["score"]>=PASS_SCORE:st.session_state.completed[m["id"]]=True
             st.rerun()
     saved=st.session_state.assignment_results.get(m["id"])
