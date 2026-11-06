@@ -1,0 +1,22 @@
+name: Python Academy Quality Gate
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/freecodecamp-guided-learning
+      - feature/beginner-chapter-slides-solutions
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile Python files
+        run: python -m compileall -q .
+      - name: Run curriculum and solution tests
+        run: python -m unittest discover -s tests -v
